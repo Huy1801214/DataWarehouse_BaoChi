@@ -1,0 +1,8 @@
+# Bỏ qua môi trường ảo
+/.venv
+
+# Bỏ qua các file cấu hình bí mật
+.env
+
+# Bỏ qua các file cache của Python
+__pycache__/ 
