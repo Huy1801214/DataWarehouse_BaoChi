@@ -24,19 +24,19 @@ def main():
 
     # lấy dữ liệu từ stagging
     cur_stg.execute("""
-        SELECT article_url, source_name, category_raw, author_raw,
+        SELECT article_url, source_name_raw, category_raw, author_raw,
                title_raw, summary_raw, content_raw, scraped_at
-        FROM staging_temp
+        FROM staging_temp_table
     """)
     rows = cur_stg.fetchall()
-    print(f"Đã lấy {len(rows)} bản ghi từ staging_temp")
+    print(f"Đã lấy {len(rows)} bản ghi từ staging_temp_table")
 
     # transform 
     transformed = []
     for r in rows:
         transformed.append({
             "article_url": r["article_url"],
-            "source_name": clean_text(r["source_name"]),
+            "source_name": clean_text(r["source_name_raw"]),
             "category_name": clean_text(r["category_raw"]),
             "author_name": clean_text(r["author_raw"]),
             "title": clean_text(r["title_raw"]),
@@ -50,12 +50,12 @@ def main():
 
     # lưu vào transform_temp
     print("Dọn bảng transform_temp cũ...")
-    cur_stg.execute("DELETE FROM transform_temp")
+    cur_stg.execute("DELETE FROM transformed_temp_table")
     conn_stg.commit()
 
     print("Ghi dữ liệu mới vào transform_temp...")
     insert_query = """
-        INSERT INTO transform_temp (
+        INSERT INTO transformed_temp_table (
             article_url, source_name, category_name, author_name,
             title, description, word_count, sentiment_score,
             published_at, run_id
@@ -69,10 +69,10 @@ def main():
             t["published_at"], t["run_id"]
         ))
     conn_stg.commit()
-    print(f"Đã lưu {len(transformed)} bản ghi vào transform_temp")
+    print(f"Đã lưu {len(transformed)} bản ghi vào transformed_temp_table")
 
     # load từ transform_temp sang DW
-    cur_stg.execute("SELECT * FROM transform_temp")
+    cur_stg.execute("SELECT * FROM transformed_temp_table")
     data = cur_stg.fetchall()
 
     inserted_count = 0
