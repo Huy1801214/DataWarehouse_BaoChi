@@ -14,7 +14,7 @@ class StagingLoader:
         self.cursor = self.conn.cursor()
 
     def clear_staging_table(self):
-        """Xóa toàn bộ dữ liệu cũ trong bảng staging_temp_table"""
+        """Xóa toàn bộ dữ liệu cũ trong staging_temp_table"""
         print("Đang xóa dữ liệu cũ trong staging_temp_table...")
         self.cursor.execute("DELETE FROM staging_temp_table")
         self.conn.commit()
@@ -25,11 +25,11 @@ class StagingLoader:
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"Không tìm thấy file: {csv_path}")
 
-        # Lấy ngày từ tên file (article_DDMMYY.csv)
         filename = os.path.basename(csv_path)
         try:
             date_str = filename.replace("article_", "").replace(".csv", "")
-            date_dim = datetime.datetime.strptime(date_str, "%d%m%y").date()
+            # YYYYMMDD → datetime.date
+            date_dim = datetime.datetime.strptime(date_str, "%Y%m%d").date()
         except Exception:
             date_dim = datetime.date.today()
 
@@ -40,41 +40,47 @@ class StagingLoader:
 
         insert_query = """
             INSERT INTO staging_temp_table (
-                article_url,
-                source_name_raw,
-                category_raw,
-                author_raw,
-                published_at_raw,
-                title_raw,
-                summary_raw,
-                content_raw,
-                run_id,
-                date_dim
+                article_url, source_name_raw, category_raw, author_raw,
+                published_at_raw, title_raw, summary_raw, content_raw,
+                tags_raw, run_id, date_dim
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """
 
-        with open(csv_path, "r", encoding="utf-8") as file:
-            reader = csv.DictReader(file)
-            rows = []
-            for row in reader:
-                rows.append((
-                    str(row.get("article_url", "")),
-                    str(row.get("source_name_raw", "")),
-                    str(row.get("category_raw", "")),
-                    str(row.get("author_raw", "")),
-                    str(row.get("published_at_raw", "")),
-                    str(row.get("title_raw", "")),
-                    str(row.get("summary_raw", "")),
-                    str(row.get("content_raw", "")),
-                    run_id,
-                    date_dim
-                ))
+        rows = []
+        try:
+            with open(csv_path, "r", encoding="utf-8-sig") as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    rows.append((
+                        row.get("article_url", ""),
+                        row.get("source_name_raw", ""),
+                        row.get("category_raw", ""),
+                        row.get("author_raw", ""),
+                        row.get("published_at_raw", ""),
+                        row.get("title_raw", ""),
+                        row.get("summary_raw", ""),
+                        row.get("content_raw", ""),
+                        row.get("tags_raw", ""),
+                        run_id,
+                        date_dim
+                    ))
+
+            if len(rows) == 0:
+                print("CSV không có dữ liệu để nạp vào DB.")
+                return False
 
             self.cursor.executemany(insert_query, rows)
             self.conn.commit()
 
-        print(f"Đã nạp {len(rows)} bản ghi vào staging_temp_table.")
+            print(f"Đã nạp {len(rows)} bản ghi vào staging_temp_table.")
+            return True
+
+        except Exception as e:
+            print("Lỗi khi nạp dữ liệu vào staging_temp_table:")
+            print(str(e))
+            self.conn.rollback()
+            return False
 
     def close(self):
         """Đóng kết nối"""
@@ -83,12 +89,14 @@ class StagingLoader:
 
 
 if __name__ == "__main__":
-    # Ví dụ: ../source/article_121125.csv
-    csv_file = "../source/article_121125.csv"
+    csv_file = "./source/article_20251115.csv"
 
     loader = StagingLoader("news_staging_db")
     try:
-        loader.clear_staging_table()          # Xóa dữ liệu cũ
-        loader.load_csv_to_staging(csv_file)  # Load dữ liệu mới
+        loader.clear_staging_table()
+        success = loader.load_csv_to_staging(csv_file)
+
+        if not success:
+            print("Không load được dữ liệu CSV.")
     finally:
         loader.close()
