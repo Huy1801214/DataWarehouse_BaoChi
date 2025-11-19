@@ -1,18 +1,12 @@
 import re
 import json
 from datetime import datetime, date
-from db_connect import connect_to_db
+from utils.db_utils import connect_to_db
 
-# ============================
-# Chuẩn hóa Source & Category
-# ============================
-
+# ====== Mapping nguồn & chuyên mục ======
 SOURCE_MAP = {
     "vnexpress": "VnExpress",
-    "dantri": "Dân Trí",
-    "tuoitre": "Tuổi Trẻ",
-    "thanhnien": "Thanh Niên",
-    "laodong": "Lao Động"
+    "tuoitre": "Tuổi Trẻ"
 }
 
 CATEGORY_MAP = {
@@ -22,78 +16,37 @@ CATEGORY_MAP = {
     "kinh doanh": "Kinh doanh",
     "giao duc": "Giáo dục",
     "phap luat": "Pháp luật",
+    "giai tri": "Giải trí",
+    "the thao": "Thể thao",
+    "suc khoe": "Sức khỏe",
+    "cong nghe": "Công nghệ",
+    "doi song": "Đời sống",
+    "du lich": "Du lịch",
+    "khoa hoc": "Khoa học",
+    "oto xe may": "Ôtô - Xe máy",
+    "bat dong san": "Bất động sản",
+    "tam ly": "Tâm lý"
 }
 
-# ============================
-# Chuẩn hóa tác giả
-# ============================
+POSITIVE_WORDS = [
+    "tốt", "vui", "hạnh phúc", "thành công", "xuất sắc", "ấn tượng", "hài lòng",
+    "khởi sắc", "khỏe mạnh", "phát triển", "đột phá", "giải thưởng", "thăng tiến",
+    "lợi ích", "sáng tạo", "đáng chú ý", "thuận lợi", "tăng trưởng", "tiến bộ",
+    "hưng thịnh", "thành tựu", "khích lệ", "khả quan", "lạc quan", "phát đạt",
+    "an toàn", "bình an", "hài hòa", "đầu tư", "thu nhập", "khen thưởng",
+    "bứt phá", "cải thiện", "thịnh vượng", "lợi nhuận", "tiềm năng", "giải pháp",
+    "khởi nghiệp", "cơ hội", "hài hước", "trẻ trung", "nổi bật", "hấp dẫn"
+]
 
-def normalize_author(name):
-    if not name:
-        return ""
-    name = name.replace("(tổng hợp)", "").strip().lower()
-    name = re.sub(r"[^a-zA-ZÀ-ỹ\s]", "", name)
-    return " ".join(w.capitalize() for w in name.split())
-
-# ============================
-# Chuẩn hóa tags
-# ============================
-
-def normalize_tags(raw_tags):
-    if not raw_tags:
-        return json.dumps([], ensure_ascii=False)
-    tags = [t.strip() for t in raw_tags.split(",") if t.strip()]
-    tags = list(dict.fromkeys(tags))
-    return json.dumps(tags, ensure_ascii=False)
-
-# ============================
-# Sentiment Analysis đơn giản
-# ============================
-
-POS_WORDS = ["tốt", "vui", "tăng", "thuận lợi", "phát triển", "lợi nhuận"]
-NEG_WORDS = ["xấu", "giảm", "thiệt hại", "bất lợi", "khó khăn", "sập"]
-
-def calc_sentiment(text):
-    if not text:
-        return 0.0
-    score = 0
-    text_lower = text.lower()
-    for w in POS_WORDS:
-        if w in text_lower:
-            score += 1
-    for w in NEG_WORDS:
-        if w in text_lower:
-            score -= 1
-    return float(score)
-
-# ============================
-# Parse published_at chuẩn VnExpress
-# ============================
-
-def parse_published_at(raw):
-    if not raw:
-        return None
-    s = raw.strip()
-    # Bỏ thứ trong tuần, ví dụ "Thứ bảy,"
-    s = re.sub(r"^[^\d]+,\s*", "", s)
-    # Chuyển (GMT+7) -> +0700
-    s = s.replace("GMT+7", "+0700").replace("(", "").replace(")", "")
-    formats = [
-        "%d/%m/%Y, %H:%M %z",
-        "%d/%m/%Y, %H:%M",
-        "%d/%m/%Y %H:%M",
-        "%d/%m/%Y"
-    ]
-    for fmt in formats:
-        try:
-            return datetime.strptime(s, fmt)
-        except:
-            pass
-    return None
-
-# ============================
-# CLASS chính
-# ============================
+NEGATIVE_WORDS = [
+    "xấu", "tệ", "buồn", "thất bại", "khó", "nguy hiểm", "tai nạn", "thiệt hại",
+    "khủng hoảng", "bạo lực", "tàn phá", "sụp đổ", "gián đoạn", "chậm trễ", "lừa đảo",
+    "phá sản", "lỗ", "biến động", "căng thẳng", "khó khăn", "bất lợi", "suy thoái",
+    "mất mát", "bạo loạn", "xung đột", "đe dọa", "thảm họa", "thiên tai", "ôn dịch",
+    "tội phạm", "khủng bố", "nguy cơ", "phản đối", "tranh cãi",
+    "tiêu cực", "bất ổn", "suy giảm", "đổ vỡ", "gây tổn hại", "khủng hoảng kinh tế",
+    "mất việc", "tắc nghẽn", "đe dọa an ninh", "phản cảm", "khủng hoảng xã hội"
+]
 
 class TransformLoader:
     def __init__(self, db_name="news_staging_db"):
@@ -102,112 +55,154 @@ class TransformLoader:
             raise ConnectionError("Không thể kết nối database.")
         self.cursor = self.conn.cursor(dictionary=True)
 
+    # -------------------------
+    # Fetch staging
+    # -------------------------
     def fetch_staging_data(self):
         self.cursor.execute("SELECT * FROM staging_temp_table")
         return self.cursor.fetchall()
 
-    def clean_text(self, text):
+    # -------------------------
+    # Helpers
+    # -------------------------
+    @staticmethod
+    def is_empty_value(val):
+        if val is None:
+            return True
+        if isinstance(val, str):
+            return val.strip().lower() in ["", "n/a", "na", "null"]
+        return False
+
+    @staticmethod
+    def normalize_author(name):
+        if not name:
+            return ""
+        name = name.replace("(tổng hợp)", "").strip().lower()
+        name = re.sub(r"[^a-zA-ZÀ-ỹ\s]", "", name)
+        return " ".join(w.capitalize() for w in name.split())
+
+    @staticmethod
+    def normalize_tags(raw_tags):
+        if not raw_tags:
+            return json.dumps([], ensure_ascii=False)
+        tags = [t.strip() for t in raw_tags.split(",") if t.strip()]
+        tags = list(dict.fromkeys(tags))
+        return json.dumps(tags, ensure_ascii=False)
+
+    @staticmethod
+    def parse_published_at(raw):
+        if not raw:
+            return None
+        s = raw.strip()
+        s = re.sub(r"^[^\d]+,\s*", "", s)
+        s = s.replace("GMT+7", "+0700").replace("(", "").replace(")", "")
+        fmts = ["%d/%m/%Y, %H:%M %z","%d/%m/%Y, %H:%M","%d/%m/%Y %H:%M","%d/%m/%Y"]
+        for f in fmts:
+            try:
+                return datetime.strptime(s, f)
+            except:
+                pass
+        return None
+
+    @staticmethod
+    def calc_sentiment(text):
+        if not text:
+            return 0.0
+        text_lower = text.lower()
+        score = 0
+        for w in POSITIVE_WORDS:
+            if w in text_lower:
+                score += 1
+        for w in NEGATIVE_WORDS:
+            if w in text_lower:
+                score -= 1
+        return float(score)
+
+    @staticmethod
+    def clean_text(text):
         if not text:
             return ""
         return re.sub(r"<[^>]*>", "", text).strip()
 
-    def transform_articles(self, data):
-        transformed = []
-        for item in data:
+    # -------------------------
+    # Transform row
+    # -------------------------
+    def transform_row(self, row):
+        if not row.get("article_url"):
+            return None
 
-            # Chuẩn hóa source
-            raw_source = (item.get("source_name_raw") or "").strip().lower()
-            source_name = SOURCE_MAP.get(raw_source, raw_source.title())
+        # Bỏ các dòng >2 cột trống/N/A/null
+        empty_count = sum(
+            self.is_empty_value(row.get(col))
+            for col in ["source_name_raw", "category_raw", "author_raw",
+                        "title_raw", "summary_raw", "content_raw", "tags_raw", "published_at_raw"]
+        )
+        if empty_count > 2:
+            return None
 
-            # Chuẩn hóa category
-            raw_cat = (item.get("category_raw") or "").strip().lower()
-            category_name = CATEGORY_MAP.get(raw_cat, raw_cat.title())
+        source = SOURCE_MAP.get((row.get("source_name_raw") or "").lower(), row.get("source_name_raw") or "")
+        category = CATEGORY_MAP.get((row.get("category_raw") or "").lower(), row.get("category_raw") or "")
+        author = self.normalize_author(row.get("author_raw") or "")
+        title = self.clean_text(row.get("title_raw"))
+        description = self.clean_text(row.get("summary_raw"))
+        content = row.get("content_raw") or ""
+        word_count = len(content.split())
+        tags = self.normalize_tags(row.get("tags_raw"))
+        published_at = self.parse_published_at(row.get("published_at_raw"))
+        date_dim = int(published_at.strftime("%Y%m%d")) if published_at else int(date.today().strftime("%Y%m%d"))
+        sentiment_score = self.calc_sentiment(content)
 
-            # Chuẩn hóa tác giả
-            author_name = normalize_author(item.get("author_raw") or "")
+        return (
+            row.get("article_url"), source, category, author,
+            published_at, title, description, word_count, tags,
+            sentiment_score, row.get("run_id"), date_dim
+        )
 
-            # Văn bản
-            title = self.clean_text(item.get("title_raw"))
-            description = self.clean_text(item.get("summary_raw"))
-            content = item.get("content_raw") or ""
-
-            # Word count
-            word_count = len(content.split())
-
-            # Tags
-            tags = normalize_tags(item.get("tags_raw"))
-
-            # Ngày đăng
-            published_at = parse_published_at(item.get("published_at_raw"))
-            if not published_at:
-                # fallback: dùng date_dim nếu parse fail
-                published_at = item.get("date_dim")
-
-            # Sentiment
-            sentiment_score = calc_sentiment(content)
-
-            transformed.append({
-                "article_url": item.get("article_url"),
-                "source_name": source_name,
-                "category_name": category_name,
-                "author_name": author_name,
-                "published_at": published_at,
-                "title": title,
-                "description": description,
-                "word_count": word_count,
-                "tags": tags,
-                "sentiment_score": sentiment_score,
-                "run_id": item.get("run_id"),
-                "date_dim": item.get("date_dim") or date.today()
-            })
-        return transformed
-
-    def clear_today_transformed(self):
-        today = date.today()
-        delete_query = "DELETE FROM transformed_temp_table WHERE date_dim = %s"
-        self.cursor.execute(delete_query, (today,))
+    # -------------------------
+    # Xóa bảng cũ
+    # -------------------------
+    def truncate_table(self):
+        self.cursor.execute("TRUNCATE TABLE transformed_temp_table")
         self.conn.commit()
-        print(f"Đã xóa dữ liệu cũ của ngày {today} trong transformed_temp_table")
+        print("Truncated transformed_temp_table")
 
-    def load_transformed_data(self, transformed_data):
-        insert_query = """
-            INSERT INTO transformed_temp_table (
-                article_url, source_name, category_name, author_name,
-                published_at, title, description, word_count, tags,
-                sentiment_score, run_id, date_dim
-            ) VALUES (
-                %(article_url)s, %(source_name)s, %(category_name)s, %(author_name)s,
-                %(published_at)s, %(title)s, %(description)s, %(word_count)s,
-                %(tags)s, %(sentiment_score)s, %(run_id)s, %(date_dim)s
+    # -------------------------
+    # Batch insert
+    # -------------------------
+    def batch_insert(self, transformed_rows):
+        sp_call = """
+            CALL sp_insert_transformed_batch(
+                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
             )
         """
-        try:
-            self.cursor.executemany(insert_query, transformed_data)
-            self.conn.commit()
-            print(f"Đã insert {self.cursor.rowcount} bản ghi vào transformed_temp_table")
-            return True
-        except Exception as e:
-            print("Lỗi khi insert dữ liệu vào transformed_temp_table:")
-            print(str(e))
-            self.conn.rollback()
-            return False
+        self.cursor.executemany(sp_call, transformed_rows)
+        self.conn.commit()
+        print(f"Inserted {len(transformed_rows)} rows into transformed_temp_table")
+
+    # -------------------------
+    # ETL
+    # -------------------------
+    def run_etl(self):
+        data = self.fetch_staging_data()
+        transformed_rows = [self.transform_row(r) for r in data if self.transform_row(r)]
+        print(f"Total rows in staging: {len(data)}")
+        print(f"Rows after filtering empty columns: {len(transformed_rows)}")
+        if transformed_rows:
+            self.truncate_table()
+            self.batch_insert(transformed_rows)
+        else:
+            print("No valid data to insert.")
 
     def close(self):
         self.cursor.close()
         self.conn.close()
 
-
+# -------------------------
+# Run
+# -------------------------
 if __name__ == "__main__":
     loader = TransformLoader()
     try:
-        loader.clear_today_transformed()
-        staging_data = loader.fetch_staging_data()
-        if not staging_data:
-            print("Không có dữ liệu trong staging_temp_table.")
-        else:
-            transformed = loader.transform_articles(staging_data)
-            success = loader.load_transformed_data(transformed)
-            if not success:
-                print("Không lưu được dữ liệu transform vào transformed_temp_table.")
+        loader.run_etl()
     finally:
         loader.close()

@@ -1,102 +1,81 @@
 import os
 import csv
 import uuid
-import datetime
-from db_connect import connect_to_db
-
+from utils.db_utils import connect_to_db
 
 class StagingLoader:
+    """Chỉ chịu trách nhiệm load CSV vào bảng staging_temp_table."""
+
     def __init__(self, db_name="news_staging_db"):
-        """Kết nối MySQL thông qua hàm connect_to_db"""
         self.conn = connect_to_db(db_name)
-        if not self.conn:
-            raise ConnectionError("Không thể kết nối database.")
         self.cursor = self.conn.cursor()
 
     def clear_staging_table(self):
-        """Xóa toàn bộ dữ liệu cũ trong staging_temp_table"""
-        print("Đang xóa dữ liệu cũ trong staging_temp_table...")
         self.cursor.execute("DELETE FROM staging_temp_table")
         self.conn.commit()
-        print("Đã xóa toàn bộ dữ liệu cũ.")
+        print("Đã xóa toàn bộ dữ liệu cũ trong staging_temp_table.")
 
     def load_csv_to_staging(self, csv_path):
-        """Đọc file CSV và nạp vào bảng staging_temp_table"""
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"Không tìm thấy file: {csv_path}")
 
-        filename = os.path.basename(csv_path)
-        try:
-            date_str = filename.replace("article_", "").replace(".csv", "")
-            # YYYYMMDD → datetime.date
-            date_dim = datetime.datetime.strptime(date_str, "%Y%m%d").date()
-        except Exception:
-            date_dim = datetime.date.today()
-
         run_id = str(uuid.uuid4())
-        print(f"Đang load file: {filename}")
-        print(f"run_id: {run_id}")
-        print(f"date_dim: {date_dim}")
+        rows = []
+
+        with open(csv_path, "r", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                rows.append((
+                    row.get("article_url", ""),
+                    row.get("source_name_raw", ""),
+                    row.get("category_raw", ""),
+                    row.get("author_raw", ""),
+                    row.get("published_at_raw", ""),
+                    row.get("title_raw", ""),
+                    row.get("summary_raw", ""),
+                    row.get("content_raw", ""),
+                    row.get("tags_raw", ""),
+                    run_id
+                ))
+
+        if not rows:
+            print("CSV không có dữ liệu để nạp vào DB.")
+            return False
 
         insert_query = """
             INSERT INTO staging_temp_table (
                 article_url, source_name_raw, category_raw, author_raw,
                 published_at_raw, title_raw, summary_raw, content_raw,
-                tags_raw, run_id, date_dim
-            )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                tags_raw, run_id
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """
 
-        rows = []
         try:
-            with open(csv_path, "r", encoding="utf-8-sig") as file:
-                reader = csv.DictReader(file)
-                for row in reader:
-                    rows.append((
-                        row.get("article_url", ""),
-                        row.get("source_name_raw", ""),
-                        row.get("category_raw", ""),
-                        row.get("author_raw", ""),
-                        row.get("published_at_raw", ""),
-                        row.get("title_raw", ""),
-                        row.get("summary_raw", ""),
-                        row.get("content_raw", ""),
-                        row.get("tags_raw", ""),
-                        run_id,
-                        date_dim
-                    ))
-
-            if len(rows) == 0:
-                print("CSV không có dữ liệu để nạp vào DB.")
-                return False
-
             self.cursor.executemany(insert_query, rows)
             self.conn.commit()
-
-            print(f"Đã nạp {len(rows)} bản ghi vào staging_temp_table.")
+            print(f"Đã nạp {len(rows)} bản ghi vào staging_temp_table với run_id {run_id}.")
             return True
-
         except Exception as e:
-            print("Lỗi khi nạp dữ liệu vào staging_temp_table:")
-            print(str(e))
+            print("Lỗi khi nạp dữ liệu vào staging_temp_table:", str(e))
             self.conn.rollback()
             return False
 
     def close(self):
-        """Đóng kết nối"""
         self.cursor.close()
         self.conn.close()
-
-
+        
 if __name__ == "__main__":
-    csv_file = "./source/article_20251115.csv"
+    csv_file = "./source/article_20251115.csv"  # Đường dẫn tới CSV
 
     loader = StagingLoader("news_staging_db")
     try:
+        #  Xóa dữ liệu cũ
         loader.clear_staging_table()
-        success = loader.load_csv_to_staging(csv_file)
 
+        #  Load dữ liệu mới từ CSV
+        success = loader.load_csv_to_staging(csv_file)
         if not success:
             print("Không load được dữ liệu CSV.")
     finally:
+        #  Đóng kết nối DB
         loader.close()
