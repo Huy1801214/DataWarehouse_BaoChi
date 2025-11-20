@@ -66,17 +66,34 @@ class TransformLoader:
         if not raw:
             return None
         s = raw.strip()
-        # bỏ tên ngày trong tuần
-        s = re.sub(r"^[^,]*,\s*", "", s)
-        # bỏ (GMT+7) hoàn toàn
-        s = s.replace("(GMT+7)", "").strip()
         
-        fmts = ["%d/%m/%Y, %H:%M", "%d/%m/%Y %H:%M", "%d/%m/%Y"]
+        # Bỏ tên ngày trong tuần (Thứ 2, Thứ 3, Thứ bảy, etc.)
+        s = re.sub(r"^[^\d]*,\s*", "", s)
+        
+        # Bỏ (GMT+7)
+        s = re.sub(r"\(GMT[+-]\d+\)", "", s).strip()
+        
+        # Thử các định dạng
+        fmts = [
+            "%d/%m/%Y, %H:%M",
+            "%d/%m/%Y %H:%M",
+            "%d/%m/%Y"
+        ]
         for f in fmts:
             try:
                 return datetime.strptime(s, f)
             except:
                 continue
+        
+        # Nếu không parse được, thử tách ngày/giờ thủ công
+        match = re.search(r"(\d{1,2}/\d{1,2}/\d{4})[, ]+(\d{1,2}:\d{2})?", s)
+        if match:
+            date_part = match.group(1)
+            time_part = match.group(2) or "00:00"
+            try:
+                return datetime.strptime(f"{date_part} {time_part}", "%d/%m/%Y %H:%M")
+            except:
+                return None
         return None
 
 
