@@ -2,10 +2,7 @@ import re
 from datetime import datetime
 from utils.db_utils import connect_to_db
 import json
-
-# ============================
-# Mapping
-# ============================
+import uuid
 
 SOURCE_MAP = {
     "vnexpress": "VnExpress",
@@ -21,23 +18,65 @@ CATEGORY_MAP = {
     "bat dong san": "Bất động sản", "tam ly": "Tâm lý"
 }
 
-# ============================
-# Loader
-# ============================
-
 class TransformLoader:
-    def __init__(self, db_name="news_staging_db"):
-        self.conn = connect_to_db(db_name)
-        if not self.conn:
-            raise ConnectionError("Không thể kết nối DB")
-        self.cursor = self.conn.cursor(dictionary=True)
+    """Transform data từ staging → transformed_temp_table + logging + config_id tự động"""
 
-    # ===== Fetch =====
-    def fetch_staging_data(self):
-        self.cursor.execute("SELECT * FROM staging_temp_table")
-        return self.cursor.fetchall()
+    def __init__(self, staging_db="news_staging_db", control_db="news_control_db"):
+        self.staging_conn = connect_to_db(staging_db)
+        self.staging_cursor = self.staging_conn.cursor(dictionary=True)
 
-    # ===== Helpers =====
+        self.control_conn = connect_to_db(control_db)
+        self.control_cursor = self.control_conn.cursor()
+
+        self.run_id = str(uuid.uuid4())
+        self.config_id = None
+
+    # ===========================
+    # Config helper
+    # ===========================
+    def get_or_create_config(self, source_name):
+        select_query = "SELECT config_id FROM config_table WHERE source_name=%s"
+        self.control_cursor.execute(select_query, (source_name,))
+        row = self.control_cursor.fetchone()
+        if row:
+            self.config_id = row[0]
+        else:
+            insert_query = """
+                INSERT INTO config_table (source_name, active, updated_at)
+                VALUES (%s, %s, %s)
+            """
+            self.control_cursor.execute(insert_query, (source_name, True, datetime.now()))
+            self.control_conn.commit()
+            self.config_id = self.control_cursor.lastrowid
+        return self.config_id
+
+    # ===========================
+    # Logging helper
+    # ===========================
+    def create_log(self, job_name="transform_loader"):
+        insert_log = """
+            INSERT INTO logging_table (run_id, config_id, job_name, status, start_time)
+            VALUES (%s, %s, %s, %s, %s)
+        """
+        self.control_cursor.execute(insert_log, (self.run_id, self.config_id, job_name, "running", datetime.now()))
+        self.control_conn.commit()
+
+    def update_log(self, status="SUCCESS", records_extracted=0, records_loaded=0, error_message=None):
+        update_log = """
+            UPDATE logging_table
+            SET status=%s,
+                end_time=%s,
+                records_extracted=%s,
+                records_loaded=%s,
+                error_message=%s
+            WHERE run_id=%s
+        """
+        self.control_cursor.execute(update_log, (status, datetime.now(), records_extracted, records_loaded, error_message, self.run_id))
+        self.control_conn.commit()
+
+    # ===========================
+    # Transform helpers
+    # ===========================
     @staticmethod
     def is_empty(val):
         if val is None:
@@ -62,30 +101,17 @@ class TransformLoader:
 
     @staticmethod
     def parse_published_date(raw):
-        """Parse published_at từ staging (tiếng Việt + offset)"""
         if not raw:
             return None
         s = raw.strip()
-        
-        # Bỏ tên ngày trong tuần (Thứ 2, Thứ 3, Thứ bảy, etc.)
         s = re.sub(r"^[^\d]*,\s*", "", s)
-        
-        # Bỏ (GMT+7)
         s = re.sub(r"\(GMT[+-]\d+\)", "", s).strip()
-        
-        # Thử các định dạng
-        fmts = [
-            "%d/%m/%Y, %H:%M",
-            "%d/%m/%Y %H:%M",
-            "%d/%m/%Y"
-        ]
+        fmts = ["%d/%m/%Y, %H:%M", "%d/%m/%Y %H:%M", "%d/%m/%Y"]
         for f in fmts:
             try:
                 return datetime.strptime(s, f)
             except:
                 continue
-        
-        # Nếu không parse được, thử tách ngày/giờ thủ công
         match = re.search(r"(\d{1,2}/\d{1,2}/\d{4})[, ]+(\d{1,2}:\d{2})?", s)
         if match:
             date_part = match.group(1)
@@ -96,13 +122,11 @@ class TransformLoader:
                 return None
         return None
 
-
     @staticmethod
     def parse_scraped_date(raw):
-        """Parse scraped_at từ staging (TEXT, có thể có microseconds)"""
         if not raw:
             return None
-        s = raw.strip().split(".")[0]  # bỏ microseconds
+        s = raw.strip().split(".")[0]
         fmts = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y"]
         for f in fmts:
             try:
@@ -113,68 +137,45 @@ class TransformLoader:
 
     @staticmethod
     def format_tags(raw):
-        """Trả về chuỗi các tag, ví dụ: 'tag1, tag2, tag3'"""
         if not raw:
             return ""
         arr = [x.strip() for x in raw.split(",") if x.strip()]
-        arr = list(dict.fromkeys(arr))  # unique
+        arr = list(dict.fromkeys(arr))
         return ", ".join(arr)
 
-    # ===== Transform row =====
     def transform_row(self, r):
         if not r.get("article_url"):
             return None
-
-        empty_fields = [
-            "source_name", "category", "author",
-            "title", "summary", "content",
-            "tags", "published_at"
-        ]
-
-        # bỏ row có quá 2 trường rỗng
+        empty_fields = ["source_name", "category", "author", "title", "summary", "content", "tags", "published_at"]
         if sum(self.is_empty(r.get(c)) for c in empty_fields) > 2:
             return None
-
-        # normalize
         source = SOURCE_MAP.get((r.get("source_name") or "").lower(), r.get("source_name") or "")
         category = CATEGORY_MAP.get((r.get("category") or "").lower(), r.get("category") or "")
         author = self.normalize_author(r.get("author"))
-
         published_at_dt = self.parse_published_date(r.get("published_at"))
         scraped_at_dt = self.parse_scraped_date(r.get("scraped_at"))
-
         title = self.clean_html(r.get("title"))
         description = self.clean_html(r.get("summary"))
         content = r.get("content") or ""
         tags = self.format_tags(r.get("tags"))
+        return (r.get("article_url"), source, category, author, published_at_dt, title, description, content, scraped_at_dt, r.get("run_id"), tags)
 
-        # ===== TRẢ VỀ ĐÚNG 11 TRƯỜNG CỦA transformed_temp_table =====
-        return (
-            r.get("article_url"),
-            source,
-            category,
-            author,
-            published_at_dt,
-            title,
-            description,
-            content,
-            scraped_at_dt,
-            r.get("run_id"),
-            tags
-        )
+    # ===========================
+    # DB operations
+    # ===========================
+    def fetch_staging_data(self):
+        self.staging_cursor.execute("SELECT * FROM staging_temp_table")
+        return self.staging_cursor.fetchall()
 
-    # ===== DB operations =====
     def truncate_table(self):
-        self.cursor.execute("TRUNCATE TABLE transformed_temp_table")
-        self.conn.commit()
+        self.staging_cursor.execute("TRUNCATE TABLE transformed_temp_table")
+        self.staging_conn.commit()
 
     def batch_insert(self, rows):
         payload = []
-
         for r in rows:
             published_str = r[4].strftime("%Y-%m-%d %H:%M:%S") if r[4] else None
             scraped_str = r[8].strftime("%Y-%m-%d %H:%M:%S") if r[8] else None
-
             payload.append({
                 "article_url": r[0],
                 "source_name": r[1],
@@ -188,39 +189,49 @@ class TransformLoader:
                 "run_id": r[9],
                 "tags": r[10],
             })
-
         json_payload = json.dumps(payload, ensure_ascii=False)
         sql = "CALL sp_insert_transformed_batch(%s)"
-        self.cursor.execute(sql, (json_payload,))
-        self.conn.commit()
+        self.staging_cursor.execute(sql, (json_payload,))
+        self.staging_conn.commit()
+        return len(rows)
 
-        print(f"Inserted {len(rows)} rows (batch JSON → stored procedure)")
-
-    # ===== ETL =====
+    # ===========================
+    # ETL
+    # ===========================
     def run_etl(self):
-        data = self.fetch_staging_data()
-        print(f"Staging rows: {len(data)}")
+        try:
+            # Lấy source_name đầu tiên để get/create config
+            staging_data = self.fetch_staging_data()
+            if not staging_data:
+                print("No staging data found")
+                return
 
-        rows = []
-        for r in data:
-            t = self.transform_row(r)
-            if t:
-                rows.append(t)
+            first_source = staging_data[0].get("source_name") or "unknown_source"
+            self.get_or_create_config(first_source)
 
-        print(f"Valid rows: {len(rows)}")
+            # Tạo log
+            self.create_log(job_name="transform_loader")
 
-        # sort theo published_at, None ở cuối
-        rows.sort(key=lambda x: (x[4] is None, x[4]))
+            records_extracted = len(staging_data)
+            rows = [r for r in (self.transform_row(r) for r in staging_data) if r]
+            records_loaded = len(rows)
 
-        if rows:
-            self.truncate_table()
-            self.batch_insert(rows)
-        else:
-            print("No valid data")
+            print(f"Staging rows: {records_extracted}, Valid rows: {records_loaded}")
+
+            if rows:
+                self.truncate_table()
+                self.batch_insert(rows)
+
+            self.update_log(status="SUCCESS", records_extracted=records_extracted, records_loaded=records_loaded)
+        except Exception as e:
+            self.update_log(status="failed", error_message=str(e))
+            print("ETL failed:", str(e))
 
     def close(self):
-        self.cursor.close()
-        self.conn.close()
+        self.staging_cursor.close()
+        self.staging_conn.close()
+        self.control_cursor.close()
+        self.control_conn.close()
 
 
 # ===== Run script =====
