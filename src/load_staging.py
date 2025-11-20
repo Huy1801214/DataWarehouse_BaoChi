@@ -34,8 +34,9 @@ class StagingLoader:
                     row.get("title_raw", ""),
                     row.get("summary_raw", ""),
                     row.get("content_raw", ""),
-                    row.get("tags_raw", ""),
-                    run_id
+                    row.get("scraped_at", ""),
+                    run_id,
+                    row.get("tags_raw", "")
                 ))
 
         if not rows:
@@ -44,10 +45,18 @@ class StagingLoader:
 
         insert_query = """
             INSERT INTO staging_temp_table (
-                article_url, source_name_raw, category_raw, author_raw,
-                published_at_raw, title_raw, summary_raw, content_raw,
-                tags_raw, run_id
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                article_url,
+                source_name,
+                category,
+                author,
+                published_at,
+                title,
+                summary,
+                content,
+                scraped_at,
+                run_id,
+                tags
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """
 
         try:
@@ -63,19 +72,16 @@ class StagingLoader:
     def close(self):
         self.cursor.close()
         self.conn.close()
-        
+
+
 if __name__ == "__main__":
     csv_file = "./source/article_20251115.csv"  # Đường dẫn tới CSV
 
     loader = StagingLoader("news_staging_db")
     try:
-        #  Xóa dữ liệu cũ
         loader.clear_staging_table()
-
-        #  Load dữ liệu mới từ CSV
         success = loader.load_csv_to_staging(csv_file)
         if not success:
             print("Không load được dữ liệu CSV.")
     finally:
-        #  Đóng kết nối DB
         loader.close()
