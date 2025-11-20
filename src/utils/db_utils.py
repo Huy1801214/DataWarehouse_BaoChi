@@ -18,3 +18,4 @@ def connect_to_db(db_name):
     except mysql.connector.Error as e:
         print(f"Lỗi khi kết nối {db_name}: {e}")
         return None
+
