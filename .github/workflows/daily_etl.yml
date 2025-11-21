@@ -1,0 +1,60 @@
+name: Daily News Crawler
+
+# 1. Kích hoạt khi nào?
+on:
+  schedule:
+    # Chạy vào 00:00 UTC hàng ngày (tức 7:00 sáng Việt Nam)
+    - cron: '0 21 * * *'
+  # Cho phép chạy thủ công bằng nút bấm trên web GitHub để test
+  workflow_dispatch:
+
+# 2. Công việc cần làm
+jobs:
+  crawl-and-save:
+    runs-on: ubuntu-latest # Chạy trên máy ảo Ubuntu mới nhất
+
+    steps:
+      # Bước A: Lấy code từ repo về máy ảo
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Bước B: Cài đặt Python 3.10
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip' # Cache lại pip để lần sau chạy nhanh hơn
+
+      # Bước C: Cài đặt Google Chrome (Bắt buộc cho Selenium)
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@latest
+        with:
+          chrome-version: stable
+
+      # Bước D: Cài đặt thư viện Python
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+      # Bước E: Chạy script web_scraper.py
+      # Quan trọng: Truyền secret vào làm biến môi trường (env)
+      - name: Run Web Scraper
+        env:
+          MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+          MYSQL_PORT: ${{ secrets.MYSQL_PORT }}
+          MYSQL_USER: ${{ secrets.MYSQL_USER }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          python src/web_scraper.py
+
+      # (Tùy chọn) Bước F: Upload file CSV lên GitHub Artifacts để bạn tải về xem thử
+      # Lưu ý: Bước này chỉ để debug, hệ thống thật sẽ lưu vào DB staging ở bước sau
+      - name: Upload Crawled Data (Artifact)
+        if: always() # Luôn chạy dù bước trên có lỗi hay không
+        uses: actions/upload-artifact@v4
+        with:
+          name: crawled-csv-files
+          path: source/
+          retention-days: 1

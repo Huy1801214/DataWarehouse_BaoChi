@@ -151,9 +151,9 @@ def run_crawler_for_job(driver, job, run_id):
     except Exception as e:
         return [], str(e)
 
-def save_data_to_csv(data, job):
+def save_data_to_csv(data):
     try:
-        output_dir = os.path.join("data", "raw", job['source_name_raw'])
+        output_dir = os.path.join("source")
         os.makedirs(output_dir, exist_ok=True)
 
         date_str = datetime.now().strftime("%d%m%y")       
@@ -194,7 +194,7 @@ def run_all_crawl():
     # 4. Vòng lặp qua từng Job 
     for job in jobs:
         config_id = job['config_id']
-        job_name = f"crawl: {job['source_name_raw']} - {job['category_raw']}"
+        job_name = f"crawl: {job['source_name_raw']}"
         
         # 4.1. Ghi log bắt đầu
         logger.start(config_id, job_name)
