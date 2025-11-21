@@ -2,6 +2,8 @@ name: Daily News Crawler
 
 # 1. Kích hoạt khi nào?
 on:
+  push:
+    branches: [ "Huy" ] 
   schedule:
     # Chạy vào 00:00 UTC hàng ngày (tức 7:00 sáng Việt Nam)
     - cron: '0 21 * * *'
