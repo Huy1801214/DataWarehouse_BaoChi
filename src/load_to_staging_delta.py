@@ -3,7 +3,6 @@ import mysql.connector
 from dotenv import load_dotenv
 import warnings
 
-# Tắt cảnh báo DeprecationWarning cho đỡ rối mắt
 warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
 from utils.db_utils import connect_to_db
@@ -53,7 +52,7 @@ def run_incremental_etl():
         if (conn.is_connected()):
             cursor.close()
             conn.close()
-            print("🔌 Đã đóng kết nối.")
+            print("Đã đóng kết nối.")
 
 if __name__ == "__main__":
     run_incremental_etl()
