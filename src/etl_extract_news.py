@@ -61,4 +61,4 @@ def save_to_staging(df):
 if __name__ == "__main__":
     df = crawl_vnexpress(limit=10)
     print(df.head())
-    save_to_staging(df)s
+    save_to_staging(df)
