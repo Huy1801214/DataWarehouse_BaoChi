@@ -17,7 +17,7 @@ SELECTOR_LOOKUP = {
             'article_link': 'h3.title-news a',
             'tieu_de': 'h1.title-detail',
             'summary': 'p.description',
-            'content_raw': 'article.fck_detail',
+            'content_raw': 'article.fck_detail p.Normal',
             'ngay_xuat_ban': 'span.date',
             'ten_tac_gia': 'p.Normal strong',
             'tags': 'div.tags h4.item-tag a'
@@ -28,7 +28,7 @@ SELECTOR_LOOKUP = {
             'article_link': 'h3.box-title-text a',
             'tieu_de': 'h1.article-title',
             'summary': 'h2.detail-sapo',
-            'content_raw': 'div.content-detail',
+            'content_raw': 'div.content-detail p',
             'ngay_xuat_ban': 'div.detail-time',
             'ten_tac_gia': 'div.author-info a.name',
             'tags': 'div.detail-tab a'
@@ -47,8 +47,15 @@ def create_selenium_driver():
 
 def safe_extract(soup, selector, default='N/A'):
     try:
-        el = soup.select_one(selector)
-        return el.get_text(strip=True) if el else default
+        elements = soup.select(selector)
+        
+        if len(elements) > 1:
+            text_list = [el.get_text(strip=True) for el in elements]
+            return "\n".join(text_list)
+        elif len(elements) == 1:
+            return elements[0].get_text(strip=True)
+        else:
+            return default
     except:
         return default
 
@@ -191,6 +198,7 @@ def run_all_crawl():
     # 3. Khởi tạo driver
     driver = create_selenium_driver()
 
+    all_data = []
     # 4. Vòng lặp qua từng Job 
     for job in jobs:
         config_id = job['config_id']
@@ -205,21 +213,27 @@ def run_all_crawl():
         if error:
             # 4.3a. Ghi log "FAILED" do bị lỗi
             logger.end(config_id, job_name, "FAILED", 0, error)
+            print(error)
         elif not data:
             logger.end(config_id, job_name, "SUCCESS", 0, "No data found")
         else:
+            all_data.extend(data)
+
+    if all_data:
             try:
                 # 4.3b. Tạo và lưu file csv có cấu trúc article_DDMMYY.csv
-                save_data_to_csv(data, job)       
+                save_data_to_csv(data, job)   
                 # 4.4. Ghi log "SUCCESS" crawl dữ liệu thành công
-                logger.end(config_id, job_name, "SUCCESS", len(data))
-                
+                logger.end(config_id, job_name, "SUCCESS", len(data))               
             except Exception as e:
                 logger.end(config_id, job_name, "FAILED", len(data), f"Save file error: {str(e)}")
 
+    else: 
+        logger.end(config_id, job_name, "FAILED", len(data), "Don't have data from all source")
     # 5. Thoát Driver
     driver.quit()
     conn.close()
 
 if __name__ == "__main__":
     run_all_crawl()
+
