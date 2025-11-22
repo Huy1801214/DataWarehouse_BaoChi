@@ -8,8 +8,7 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.db_utils import get_db_connection
-from utils.logging_manager import LoggingManager
+from utils.db_utils import connect_to_db, log_startg, log_endg
 
 SELECTOR_LOOKUP = {
     'VnExpress': {
@@ -28,7 +27,7 @@ SELECTOR_LOOKUP = {
             'article_link': 'h3.box-title-text a',
             'tieu_de': 'h1.article-title',
             'summary': 'h2.detail-sapo',
-            'content_raw': 'div.content-detail p',
+            'content_raw': 'div.detail-content p',
             'ngay_xuat_ban': 'div.detail-time',
             'ten_tac_gia': 'div.author-info a.name',
             'tags': 'div.detail-tab a'
@@ -177,21 +176,18 @@ def run_all_crawl():
     run_id = str(uuid.uuid4())
     
     # 1. Kết nối tới DB
-    conn = get_db_connection()
+    conn = connect_to_db("news_control_db")
     if not conn:
         print("[ERROR] Không kết nối được DB. Dừng.")
         return
     
-    logger = LoggingManager(conn, run_id)
-
     # 2. Lấy danh sách các Job trong config
     jobs = get_jobs_from_config(conn)
     
     # 2.1. Duyệt xem danh sách các Job còn trống không ?
     if not jobs:
-        msg = "There are no jobs to run (Check Config/Categories active=1)."
-        logger.start(config_id=-1, job_name="SYSTEM_CHECK")
-        logger.end(config_id=-1, job_name="SYSTEM_CHECK", status="FAILED", records_extracted=0, error_message=msg)
+        run_id_sys, _ = log_startg("SYSTEM_CHECK", -1)
+        log_endg(run_id_sys, "FAILED", 0, 0, "There are no jobs to run (Check Active=1)")
         conn.close()
         return
 
@@ -205,31 +201,33 @@ def run_all_crawl():
         job_name = f"crawl: {job['source_name_raw']}"
         
         # 4.1. Ghi log bắt đầu
-        logger.start(config_id, job_name)
+        run_id_start, _ = log_startg(job_name, config_id)
         
         # 4.2. Thực thi crawl dữ liệu theo từng job
-        data, error = run_crawler_for_job(driver, job, run_id)
+        data, error = run_crawler_for_job(driver, job, run_id_start)
         
         if error:
             # 4.3a. Ghi log "FAILED" do bị lỗi
-            logger.end(config_id, job_name, "FAILED", 0, error)
+            log_endg(run_id_start, "FAILED", 0, 0, error)
             print(error)
+            
         elif not data:
-            logger.end(config_id, job_name, "SUCCESS", 0, "No data found")
-        else:
+            log_endg(run_id_start, "SUCCESS", 0, 0, "No article found")
+
+        else: 
+            # 4.3b. Lưu file CSV (cho từng job)
             all_data.extend(data)
+            # 4.4. Ghi log SUCCESS
+            log_endg(run_id_start, "SUCCESS", len(data), 0)
+            print(f"  [BUFFER] Đã lấy được {len(data)} bài. Đang chờ lưu...")
 
-    if all_data:
+    if all_data: 
             try:
-                # 4.3b. Tạo và lưu file csv có cấu trúc article_DDMMYY.csv
-                save_data_to_csv(data, job)   
-                # 4.4. Ghi log "SUCCESS" crawl dữ liệu thành công
-                logger.end(config_id, job_name, "SUCCESS", len(data))               
-            except Exception as e:
-                logger.end(config_id, job_name, "FAILED", len(data), f"Save file error: {str(e)}")
+                saved_path = save_data_to_csv(all_data)
+                print(f"  [SAVED] Đã lưu {len(all_data)} dòng vào: {saved_path}")
+            except Exception as e: 
+                log_endg(run_id_start, "FAILED", 0, 0, error)
 
-    else: 
-        logger.end(config_id, job_name, "FAILED", len(data), "Don't have data from all source")
     # 5. Thoát Driver
     driver.quit()
     conn.close()
