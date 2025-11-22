@@ -10,7 +10,7 @@ def export():
     df = pd.read_sql("SELECT * FROM staging_delta", conn)
     
     # Xuất file (Không header)
-    df.to_csv("delta_data.csv", index=False, header=False)
+    df.to_csv("src/source/delta_data.csv", index=False, header=False)
     print(f"Đã xuất {len(df)} dòng ra file: delta_data.csv")
     conn.close()
 

@@ -121,7 +121,7 @@ def calculate_article_key(url):
 
 def load_data_from_file():
     # 1. Kiểm tra file CSV (Giả lập việc đã nhận được hàng từ Staging)
-    csv_file = "delta_data.csv"
+    csv_file = "src/source/delta_data.csv"
     if not os.path.exists(csv_file):
         print(f"Không tìm thấy file {csv_file}! (Bạn đã chạy export chưa?)")
         return
