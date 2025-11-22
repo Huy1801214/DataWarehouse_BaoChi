@@ -1,8 +1,66 @@
-# Bỏ qua môi trường ảo
-/.venv
+# ======================
+# Python cache & build
+# ======================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.sqlite3
+*.log
 
-# Bỏ qua các file cấu hình bí mật
+# Byte-compiled / optimized / DLL files
+*.so
+*.dll
+*.dylib
+
+# ======================
+# Virtual Environments
+# ======================
+.venv/
+env/
+venv/
+
+# ======================
+# Environment / Secrets
+# ======================
 .env
+.env.*
+*.key
+*.pem
 
-# Bỏ qua các file cache của Python
-__pycache__/ 
+# ======================
+# Editors / IDEs
+# ======================
+.vscode/
+.idea/
+*.code-workspace
+
+# ======================
+# Jupyter Notebook checkpoints (nếu có)
+# ======================
+.ipynb_checkpoints/
+
+# ======================
+# OS system files
+# ======================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ======================
+# Data or output files
+# ======================
+data/
+output/
+*.csv
+*.xlsx
+*.parquet
+*.json
+
+# ======================
+# Backup or temp files
+# ======================
+*.bak
+*.tmp
+*.swp
