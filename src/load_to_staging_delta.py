@@ -3,51 +3,65 @@ import mysql.connector
 from dotenv import load_dotenv
 import warnings
 
-warnings.filterwarnings("ignore", category=DeprecationWarning) 
-
+warnings.filterwarnings("ignore") 
 from utils.db_utils import connect_to_db
+from utils.log_utils import log_start, log_end
 
 def run_incremental_etl():
-    conn = connect_to_db("news_staging_db")
+    JOB_NAME = 'load_delta'
+    CONFIG_ID = None 
+    
+    # 1. GHI LOG START 
+    start_result = log_start(JOB_NAME, CONFIG_ID)
+    
+    if start_result and isinstance(start_result, tuple):
+        run_id = start_result[0] # Lấy ID (Chuỗi UUID)
+    else:
+        run_id = start_result # Trường hợp nó trả về mỗi ID (đề phòng)
 
+    if not run_id:
+        print("Không khởi tạo được Run ID. Dừng chương trình.")
+        return
+
+    conn = connect_to_db("news_staging_db")
     if conn is None:
+        log_end(run_id, "FAILED", 0, 0, "Connection Failed")
         return 
 
     try:
         cursor = conn.cursor()
-        print("Đang gọi Procedure 'load_to_staging_delta'...")
+        print(f"[RunID: {run_id}] Đang gọi Procedure...")
         
         cursor.callproc('load_to_staging_delta')
         
         result_value = None
-        
-        # Lấy kết quả trả về
         for result in cursor.stored_results():
             row = result.fetchone()
-            if row:
-                result_value = row[0] # Lấy giá trị đầu tiên
+            if row: result_value = row[0]
 
         conn.commit()
 
-        # --- KIỂM TRA KẾT QUẢ TRẢ VỀ ---
-        
-        # Trường hợp 1: Procedure trả về chữ (Thường là thông báo lỗi)
+        # --- XỬ LÝ KẾT QUẢ ---
         if isinstance(result_value, str):
-            print(f"Procedure gặp lỗi nội bộ trong MySQL. MySQL trả về: '{result_value}'")
+            err_msg = f"SQL Error: {result_value}"
+            print(f"{err_msg}")
+            log_end(run_id, "FAILED", 0, 0, err_msg)
         
-        # Trường hợp 2: Procedure trả về số (Thành công)
         elif isinstance(result_value, int):
-            if result_value > 0:
-                print(f"Thành công! Đã load thêm {result_value} dòng mới vào bảng Delta.")
-            else:
-                print("Procedure chạy thành công nhưng không có dữ liệu mới nào.")
+            print(f"Thành công! Load {result_value} dòng.")
+            # Với bước này: extracted = loaded (lấy bao nhiêu nạp bấy nhiêu)
+            log_end(run_id, "SUCCESS", records_extracted=result_value, records_loaded=result_value)
         
-        # Trường hợp 3: Không trả về gì
         else:
-            print("Procedure không trả về kết quả nào (None).")
+            msg = "Procedure returned None"
+            print(f"{msg}")
+            log_end(run_id, "FAILED", 0, 0, msg)
 
     except mysql.connector.Error as err:
-        print(f"Lỗi kết nối hoặc gọi Procedure: {err}")
+        err_msg = f"Python Error: {err}"
+        print(f"{err_msg}")
+        log_end(run_id, "FAILED", 0, 0, err_msg)
+        
     finally:
         if (conn.is_connected()):
             cursor.close()
