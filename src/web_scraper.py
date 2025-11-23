@@ -227,7 +227,7 @@ def run_all_crawl():
             # 4.3b. Lưu file CSV (cho từng job)
             all_data.extend(data)
             # 4.4. Ghi log SUCCESS
-            log_endg(run_id_start, "SUCCESS", len(data), 0)
+            log_endg(run_id_start, "SUCCESS", len(data), len(all_data))
             print(f"  [BUFFER] Đã lấy được {len(data)} bài. Đang chờ lưu...")
 
     if all_data: 

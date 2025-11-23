@@ -11,7 +11,7 @@ on:
 # 2. Công việc
 jobs:
   crawl-and-load:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     # Tối ưu: Khai báo Secret ở đây để TẤT CẢ các bước bên dưới đều dùng được
     env:
@@ -60,6 +60,17 @@ jobs:
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           python src/load_staging.py
+
+      - name: Run Transform Stagging
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          python src/transform_staging.py
+
+      - name: Run Load to Stagging Delta
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          python src/load_to_staging_delta.py
+
 
       # Bước 7: Upload file CSV để backup/debug (Luôn chạy kể cả khi Load lỗi)
       - name: Upload Crawled Data (Artifact)
