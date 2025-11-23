@@ -16,6 +16,7 @@ jobs:
       MYSQL_PORT: ${{ secrets.MYSQL_PORT }}
       MYSQL_USER: ${{ secrets.MYSQL_USER }}
       MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+      PYTHONIOENCODING: "utf-8"
 
     steps:
       - name: Checkout code
