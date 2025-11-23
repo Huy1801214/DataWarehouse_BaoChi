@@ -4,7 +4,7 @@ import os
 import pandas as pd
 from datetime import date
 from utils.db_utils import connect_to_db
-from utils.db_utils import log_startg, log_endg
+from utils.log_utils import log_start, log_end
 
 # --- Cấu hình File & Constants ---
 TODAY_STR = date.today().strftime("%Y%m%d")
@@ -28,7 +28,7 @@ def get_insert_query(table_name, df_cols):
 
 def run_load_mart_job():
     job_name = "Load_DataMart"
-    run_id_load, conn_control = log_startg(job_name)
+    run_id_load, conn_control = log_start(job_name)
     print(f"Run ID Load Data Mart: {run_id_load}")
     if not run_id_load: return
         
@@ -73,13 +73,13 @@ def run_load_mart_job():
         conn_mart.commit()
         
         # 2. Ghi log END (Load Mart)
-        log_endg(run_id_load, "SUCCESS", records_extracted=total_records_loaded, records_loaded=total_records_loaded)
+        log_end(run_id_load, "SUCCESS", records_extracted=total_records_loaded, records_loaded=total_records_loaded)
         print(f"Load Mart SUCCESS. Tổng cộng {total_records_loaded} bản ghi đã nạp.")
 
     except Exception as e:
         error_msg = f"Lỗi Load Data Mart (Table {table_name}): {str(e)}"
         if conn_mart: conn_mart.rollback()
-        log_endg(run_id_load, "FAIL", records_extracted=extracted, records_loaded=total_records_loaded, error_message=error_msg)
+        log_end(run_id_load, "FAIL", records_extracted=extracted, records_loaded=total_records_loaded, error_message=error_msg)
         print(f"FAIL: {error_msg}.")
 
     finally:
