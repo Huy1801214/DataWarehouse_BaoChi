@@ -11,7 +11,7 @@ def import_date_dim():
         print(f"Không tìm thấy file {csv_file}")
         return
 
-    print("📖 Đang đọc file CSV...")
+    print("Đang đọc file CSV...")
     # Đọc file 
     df = pd.read_csv(csv_file, header=None)
     

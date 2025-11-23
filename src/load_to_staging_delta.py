@@ -15,10 +15,9 @@ def run_incremental_etl():
     start_result = log_start(JOB_NAME, CONFIG_ID)
     
     if start_result and isinstance(start_result, tuple):
-        run_id = start_result[0] # Lấy ID (Chuỗi UUID)
+        run_id = start_result[0] # Lấy ID 
     else:
-        run_id = start_result # Trường hợp nó trả về mỗi ID (đề phòng)
-
+        run_id = start_result
     if not run_id:
         print("Không khởi tạo được Run ID. Dừng chương trình.")
         return
