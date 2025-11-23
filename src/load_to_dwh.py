@@ -92,7 +92,7 @@ def load_data_from_file():
         print(f"   -> Kết quả: {loaded_count} bài báo thay đổi nội dung.")
 
         # 4. Xử lý TAGS 
-        print("[BƯỚC 4] Kiểm tra và Cập nhật Tags (Tối ưu)...")
+        print("[BƯỚC 4] Kiểm tra và Cập nhật Tags ...")
         cursor.execute("SELECT article_url, tags FROM buffer_delta WHERE tags IS NOT NULL AND tags != ''")
         delta_rows = cursor.fetchall()
 
