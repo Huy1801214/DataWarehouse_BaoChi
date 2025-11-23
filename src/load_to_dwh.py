@@ -19,9 +19,9 @@ def load_data_from_file():
     # 1. GHI LOG START
     start_result = log_start(JOB_NAME, CONFIG_ID)
     
-    # Tách lấy ID ra khỏi Tuple
+    # Tách lấy ID 
     if start_result and isinstance(start_result, tuple):
-        run_id = start_result[0] # Lấy phần tử đầu tiên là ID
+        run_id = start_result[0] 
     else:
         run_id = start_result
 
