@@ -1,64 +1,87 @@
 # load_to_datamart.py (Bước Load Data Mart)
 
 import os
-import mysql.connector
 import pandas as pd
 from datetime import date
-from utils.db_utils import start_job_log, end_job_log, connect_to_db, log_error
+from utils.db_utils import connect_to_db
+from utils.log_utils import log_start, log_end
 
-# --- Cấu hình File ---
+# --- Cấu hình File & Constants ---
 TODAY_STR = date.today().strftime("%Y%m%d")
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CSV_SOURCE = os.path.join(BASE_DIR, "..", "temp", f"agg_mart_data_{TODAY_STR}.csv")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
+SOURCE_DIR = os.path.join(BASE_DIR, "..", "source")
+
+# Định nghĩa thứ tự Load (Dims trước, Fact sau)
+LOAD_ORDER = [
+    ("DimDate", f"dim_date_{TODAY_STR}.csv"),
+    ("DimCategory", f"dim_category_{TODAY_STR}.csv"),
+    ("DimTag", f"dim_tag_{TODAY_STR}.csv"),
+    ("DimSource", f"dim_source_{TODAY_STR}.csv"),
+    ("Agg_Mart_Top_Trends", f"agg_mart_data_{TODAY_STR}.csv") 
+]
+
+def get_insert_query(table_name, df_cols):
+    """Tạo INSERT query động dựa trên tên bảng và cột."""
+    cols = ", ".join(df_cols)
+    placeholders = ", ".join(["%s"] * len(df_cols))
+    return f"INSERT INTO {table_name} ({cols}) VALUES ({placeholders})"
 
 def run_load_mart_job():
-    job_name = "Load_To_DataMart"
-    # Ghi log START
-    run_id, conn_control = start_job_log(job_name)
-    if not run_id: return
-
+    job_name = "Load_DataMart"
+    run_id_load, conn_control = log_start(job_name)
+    print(f"Run ID Load Data Mart: {run_id_load}")
+    if not run_id_load: return
+        
     conn_mart = None
-    records_loaded = 0
+    total_records_loaded = 0
+    extracted = 0
     
     try:
-        if not os.path.exists(CSV_SOURCE):
-            raise FileNotFoundError(f"Không tìm thấy file Aggregate CSV: {CSV_SOURCE}")
-            
-        # 1. Đọc dữ liệu từ File CSV
-        df = pd.read_csv(CSV_SOURCE, encoding='utf8')
-        
-        # 2. Kết nối và Ghi vào Data Mart
         conn_mart = connect_to_db("news_mart_db")
-        if not conn_mart: return
-
+        if not conn_mart: raise Exception("Không thể kết nối Data Mart.")
         cursor_mart = conn_mart.cursor()
+
+         # 1.CALL SP_Clear_Mart (Ghi đè tất cả 5 bảng)
+        print("Đang gọi SP để dọn dẹp toàn bộ Data Mart...")
+        cursor_mart.callproc('SP_Clear_Mart')
         
-        # Chiến lược TRUNCATE và LOAD
-        print("Đang TRUNCATE bảng Agg_Mart_Top_Trends...")
-        cursor_mart.execute("TRUNCATE TABLE news_mart_db.Agg_Mart_Top_Trends")
-        
-        # Chuẩn bị dữ liệu để nạp
-        data_to_insert = [tuple(row) for row in df.values]
-        
-        INSERT_MART_QUERY = """
-        INSERT INTO Agg_Mart_Top_Trends 
-        (date_key, category_key, tag_key, article_year, article_month, category_name, tag_name, total_articles, avg_sentiment) 
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        
-        cursor_mart.executemany(INSERT_MART_QUERY, data_to_insert)
+        # 2. Load lần lượt các bảng theo thứ tự
+        for table_name, file_name in LOAD_ORDER:
+            file_path = os.path.join(SOURCE_DIR, file_name)
+            
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"Thiếu file: {file_name}")
+
+            df = pd.read_csv(file_path, encoding='utf8', keep_default_na=False)
+            extracted = len(df)
+
+            # Chuyển đổi tất cả các giá trị NaN (tức là ô trống) thành None 
+            # để MySQL chấp nhận NULL
+            df = df.where(pd.notna(df), None)
+            df.columns = [str(col).strip() for col in df.columns]
+            valid_cols = [col for col in df.columns if col.lower() not in ('nan', 'unnamed: 0') and col != '']
+
+            # --- INSERT DỮ LIỆU ---
+            print(f"-> Nạp {extracted} dòng vào {table_name}...")
+            
+            insert_query = get_insert_query(table_name, valid_cols)
+            data_to_insert = [tuple(row) for row in df[valid_cols].values]
+            
+            cursor_mart.executemany(insert_query, data_to_insert)
+            total_records_loaded += cursor_mart.rowcount
+            
         conn_mart.commit()
-        records_loaded = cursor_mart.rowcount
         
-        # Ghi log SUCCESS
-        end_job_log(run_id, "SUCCESS", records_loaded=records_loaded, records_extracted=len(df))
-        print(f"✅ Hoàn thành Load Mart: {records_loaded} dòng đã nạp.")
+        # 2. Ghi log END (Load Mart)
+        log_end(run_id_load, "SUCCESS", records_extracted=total_records_loaded, records_loaded=total_records_loaded)
+        print(f"Load Mart SUCCESS. Tổng cộng {total_records_loaded} bản ghi đã nạp.")
 
     except Exception as e:
-        error_msg = f"Lỗi Load Data Mart: {str(e)}"
-        print(f"❌ {error_msg}")
+        error_msg = f"Lỗi Load Data Mart (Table {table_name}): {str(e)}"
         if conn_mart: conn_mart.rollback()
-        log_error(run_id, error_msg)
+        log_end(run_id_load, "FAIL", records_extracted=extracted, records_loaded=total_records_loaded, error_message=error_msg)
+        print(f"FAIL: {error_msg}.")
+
     finally:
         if conn_mart: conn_mart.close()
 

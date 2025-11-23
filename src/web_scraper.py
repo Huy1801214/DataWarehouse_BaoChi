@@ -53,6 +53,7 @@ def create_selenium_driver():
 
     driver = webdriver.Chrome(options=chrome_options)
     driver.set_page_load_timeout(60)
+
     return driver
 
 def safe_extract(soup, selector, default='N/A'):
