@@ -8,7 +8,9 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.db_utils import connect_to_db, log_startg, log_endg
+from utils.db_utils import connect_to_db
+from utils.log_utils import log_start, log_end
+
 
 SELECTOR_LOOKUP = {
     'VnExpress': {
@@ -186,8 +188,8 @@ def run_all_crawl():
     
     # 2.1. Duyệt xem danh sách các Job còn trống không ?
     if not jobs:
-        run_id_sys, _ = log_startg("SYSTEM_CHECK", -1)
-        log_endg(run_id_sys, "FAILED", 0, 0, "There are no jobs to run (Check Active=1)")
+        run_id_sys, _ = log_start("SYSTEM_CHECK", -1)
+        log_end(run_id_sys, "FAILED", 0, 0, "There are no jobs to run (Check Active=1)")
         conn.close()
         return
 
@@ -201,24 +203,24 @@ def run_all_crawl():
         job_name = f"crawl: {job['source_name_raw']}"
         
         # 4.1. Ghi log bắt đầu
-        run_id_start, _ = log_startg(job_name, config_id)
+        run_id_start, _ = log_start(job_name, config_id)
         
         # 4.2. Thực thi crawl dữ liệu theo từng job
         data, error = run_crawler_for_job(driver, job, run_id_start)
         
         if error:
             # 4.3a. Ghi log "FAILED" do bị lỗi
-            log_endg(run_id_start, "FAILED", 0, 0, error)
+            log_end(run_id_start, "FAILED", 0, 0, error)
             print(error)
             
         elif not data:
-            log_endg(run_id_start, "SUCCESS", 0, 0, "No article found")
+            log_end(run_id_start, "SUCCESS", 0, 0, "No article found")
 
         else: 
             # 4.3b. Lưu file CSV (cho từng job)
             all_data.extend(data)
             # 4.4. Ghi log SUCCESS
-            log_endg(run_id_start, "SUCCESS", len(data), 0)
+            log_end(run_id_start, "SUCCESS", len(data), 0)
             print(f"  [BUFFER] Đã lấy được {len(data)} bài. Đang chờ lưu...")
 
     if all_data: 
@@ -226,7 +228,7 @@ def run_all_crawl():
                 saved_path = save_data_to_csv(all_data)
                 print(f"  [SAVED] Đã lưu {len(all_data)} dòng vào: {saved_path}")
             except Exception as e: 
-                log_endg(run_id_start, "FAILED", 0, 0, error)
+                log_end(run_id_start, "FAILED", 0, 0, error)
 
     # 5. Thoát Driver
     driver.quit()

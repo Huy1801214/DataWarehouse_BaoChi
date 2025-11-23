@@ -2,7 +2,8 @@ import os
 import csv
 import uuid
 import glob
-from utils.db_utils import connect_to_db, log_startg, log_endg
+from utils.db_utils import connect_to_db
+from utils.log_utils import log_start, log_end
 
 class StagingLoader:
     """Load CSV vào staging_temp_table, quản lý run_id tự động với logging."""
@@ -12,7 +13,7 @@ class StagingLoader:
         self.staging_cursor = self.staging_conn.cursor()
         self.job_name = job_name
         # Log START
-        self.run_id, _ = log_startg(job_name)
+        self.run_id, _ = log_start(job_name)
         print(f"[INFO] RUN_ID: {self.run_id}")
 
     # =============================
@@ -52,7 +53,7 @@ class StagingLoader:
 
             if not rows:
                 print("CSV không có dữ liệu.")
-                log_endg(self.run_id, "SUCCESS", total_rows, total_rows)
+                log_end(self.run_id, "SUCCESS", total_rows, total_rows)
                 return False
 
             insert_query = """
@@ -74,13 +75,13 @@ class StagingLoader:
             self.staging_conn.commit()
             total_rows = len(rows)
             print(f"Đã nạp {total_rows} bản ghi vào staging_temp_table với run_id {self.run_id}.")
-            log_endg(self.run_id, "SUCCESS", total_rows, total_rows)
+            log_end(self.run_id, "SUCCESS", total_rows, total_rows)
             return True
 
         except Exception as e:
             self.staging_conn.rollback()
             print("Lỗi khi nạp dữ liệu vào staging_temp_table:", str(e))
-            log_endg(self.run_id, "FAILED", total_rows, 0, str(e))
+            log_end(self.run_id, "FAILED", total_rows, 0, str(e))
             return False
 
     # =============================
