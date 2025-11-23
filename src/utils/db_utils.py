@@ -23,13 +23,14 @@ def connect_to_db(db_name):
 def execute_sp(conn, procname, args):
     """Hàm chung để gọi Stored Procedure."""
     cursor = conn.cursor()
-    cursor.callproc(procname, args)
+    result_args = cursor.callproc(procname, args)
     conn.commit()
     # Nếu là SP_Start_Log, lấy run_id
     if procname == 'SP_Start_Log':
-        cursor.execute("SELECT @p_run_id") 
-        return cursor.fetchone()[0]
+        run_id = result_args[2]
+        return run_id
     return None
+
 
 # --- QUẢN LÝ GHI LOG START ---
 def log_startg(job_name: str, config_id: int = None):
@@ -41,10 +42,9 @@ def log_startg(job_name: str, config_id: int = None):
         print("Lỗi: Không thể kết nối DB Control để ghi Log START.")
         return None, None
     
-    run_id = None
     try:
         # 1. Chuẩn bị tham số (config_id, job_name, OUT variable name)
-        args = [config_id, job_name, '@p_run_id'] 
+        args = [config_id, job_name, None] 
         
         # 2. Thực thi SP: execute_sp sẽ tự động commit và trả về run_id
         run_id = execute_sp(conn_control, 'SP_Start_Log', args)
