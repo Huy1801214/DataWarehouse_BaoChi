@@ -1,30 +1,37 @@
 import os
 import csv
 import uuid
-from utils.db_utils import connect_to_db
+from utils.db_utils import connect_to_db, log_startg, log_endg
 
 class StagingLoader:
-    """Load CSV vào staging_temp_table, quản lý run_id tự động."""
+    """Load CSV vào staging_temp_table, quản lý run_id tự động với logging."""
 
-    def __init__(self, staging_db="news_staging_db"):
+    def __init__(self, staging_db="news_staging_db", job_name="Load_Staging"):
         self.staging_conn = connect_to_db(staging_db)
         self.staging_cursor = self.staging_conn.cursor()
-        self.run_id = str(uuid.uuid4())
+        self.job_name = job_name
+        # Log START
+        self.run_id, _ = log_startg(job_name)
+        print(f"[INFO] RUN_ID: {self.run_id}")
 
     # =============================
-    # Load CSV
+    # Clear staging table
     # =============================
     def clear_staging_table(self):
         self.staging_cursor.execute("DELETE FROM staging_temp_table")
         self.staging_conn.commit()
         print("Đã xóa toàn bộ dữ liệu cũ trong staging_temp_table.")
 
+    # =============================
+    # Load CSV
+    # =============================
     def load_csv_to_staging(self, csv_path):
-        if not os.path.exists(csv_path):
-            raise FileNotFoundError(f"Không tìm thấy file: {csv_path}")
-
-        rows = []
+        total_rows = 0
         try:
+            if not os.path.exists(csv_path):
+                raise FileNotFoundError(f"Không tìm thấy file: {csv_path}")
+
+            rows = []
             with open(csv_path, "r", encoding="utf-8-sig") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
@@ -44,6 +51,7 @@ class StagingLoader:
 
             if not rows:
                 print("CSV không có dữ liệu.")
+                log_endg(self.run_id, "SUCCESS", total_rows, total_rows)
                 return False
 
             insert_query = """
@@ -63,12 +71,15 @@ class StagingLoader:
             """
             self.staging_cursor.executemany(insert_query, rows)
             self.staging_conn.commit()
-            print(f"Đã nạp {len(rows)} bản ghi vào staging_temp_table với run_id {self.run_id}.")
+            total_rows = len(rows)
+            print(f"Đã nạp {total_rows} bản ghi vào staging_temp_table với run_id {self.run_id}.")
+            log_endg(self.run_id, "SUCCESS", total_rows, total_rows)
             return True
 
         except Exception as e:
             self.staging_conn.rollback()
             print("Lỗi khi nạp dữ liệu vào staging_temp_table:", str(e))
+            log_endg(self.run_id, "FAILED", total_rows, 0, str(e))
             return False
 
     # =============================
