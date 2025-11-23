@@ -1,7 +1,7 @@
-from utils.db_utils import connect_to_db, log_startg, log_endg
+from utils.db_utils import connect_to_db
+from utils.log_utils import log_start, log_end
 from bs4 import BeautifulSoup
 import re
-import uuid
 from pyvi import ViTokenizer
 
 
@@ -61,7 +61,7 @@ class TransformLoader:
         self.cursor = self.conn.cursor(dictionary=True)
         self.job_name = job_name
         # Log START
-        self.run_id, _ = log_startg(job_name)
+        self.run_id, _ = log_start(job_name)
         print(f"[INFO] RUN_ID: {self.run_id}")
 
     def build_clean_staging(self):
@@ -110,11 +110,11 @@ class TransformLoader:
             self.cursor.execute("SELECT COUNT(*) AS cnt FROM transformed_temp_table WHERE run_id=%s", (self.run_id,))
             total_success = self.cursor.fetchone()["cnt"]
             total_raw = total_success
-            log_endg(self.run_id, "SUCCESS", total_raw, total_success)
+            log_end(self.run_id, "SUCCESS", total_raw, total_success)
             print(f"[OK] Transform hoàn tất, RUN_ID: {self.run_id}")
         except Exception as e:
             total_failed = 1
-            log_endg(self.run_id, "FAILED", total_raw, total_success, str(e))
+            log_end(self.run_id, "FAILED", total_raw, total_success, str(e))
             print(f"[ERROR] Transform failed: {e}")
             self.conn.rollback()
 
