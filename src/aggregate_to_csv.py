@@ -20,12 +20,13 @@ TABLE_FILES = {
 
 def run_aggregate_and_dom():
     job_name = "Aggregate_DOM"
-    run_id_agg, conn_control = log_startg(job_name)
-    if not run_id_agg: return
-
+    run_id_agg = None
     conn_dwh = None
     records_aggregated = 0
     total_files_written = 0
+    run_id_agg, conn_control = log_startg(job_name)
+    print(f"Job Aggregate_DOM started with Run ID: {run_id_agg}")
+    if not run_id_agg: return
 
     try:
         conn_dwh = connect_to_db("news_warehouse_db")
@@ -59,13 +60,13 @@ def run_aggregate_and_dom():
             print(f"   -> Đã ghi {table_name} ({len(df)} dòng)")
         
         # 3. Ghi log END (Aggregate)
-        log_endg(run_id_agg, "SUCCESS", extracted=records_aggregated, loaded=total_files_written) # Loaded=Số file
+        log_endg(run_id_agg, "SUCCESS", records_extracted=records_aggregated, records_loaded=total_files_written) # Loaded=Số file
         print(f"Aggregate SUCCESS. Đã ghi {total_files_written} file.")
 
     except Exception as e:
         error_msg = f"Lỗi Aggregate/DOM: {str(e)}"
         if conn_dwh: conn_dwh.rollback()
-        log_endg(run_id_agg, "FAIL", extracted=records_aggregated, loaded=0, error_message=error_msg)
+        log_endg(run_id_agg, "FAIL", records_extracted=records_aggregated, records_loaded=0, error_message=error_msg)
         print(f"FAIL: {error_msg}. Dừng quy trình.")
         
     finally:
