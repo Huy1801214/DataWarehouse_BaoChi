@@ -1,121 +1,90 @@
+import os
 import mysql.connector
-from datetime import datetime, date
-import uuid
+from dotenv import load_dotenv
+import warnings
+
+warnings.filterwarnings("ignore") 
 from utils.db_utils import connect_to_db
+from utils.log_utils import log_start, log_end
 
-
-def load_to_staging_delta():
-    conn = connect_to_db("news_staging_db")
-    cursor = conn.cursor(dictionary=True)
-
-    # lấy config
-    cursor.execute("""
-        SELECT * FROM config WHERE active = TRUE LIMIT 1;
-    """)
-    config = cursor.fetchone()
-    if not config:
-        print("No active config found.")
+def run_incremental_etl():
+    # 1. KHỞI TẠO: Định nghĩa tên Job và Config
+    JOB_NAME = 'load_delta'
+    CONFIG_ID = None 
+    
+    # 2. GHI LOG START: Gọi vào Control DB để báo hiệu bắt đầu chạy
+    start_result = log_start(JOB_NAME, CONFIG_ID)
+    
+    # 3. XỬ LÝ RUN ID: Tách lấy ID từ kết quả trả về
+    if start_result and isinstance(start_result, tuple):
+        run_id = start_result[0] # Lấy ID 
+    else:
+        run_id = start_result
+        
+    # 4. QUYẾT ĐỊNH: Có lấy được Run ID không?
+    if not run_id:
+        # [NHÁNH NO]: Dừng chương trình nếu không có ID
+        print("Không khởi tạo được Run ID. Dừng chương trình.")
         return
+    # 5. KẾT NỐI DB: Kết nối tới news_staging_db
+    conn = connect_to_db("news_staging_db")
 
-    config_id = config["config_id"]
-    run_id = str(uuid.uuid4())
-    start_time = datetime.now()
+    # 6. QUYẾT ĐỊNH: Kết nối thành công không?
+    if conn is None:
+        # [NHÁNH NO]: Ghi log FAILED và Dừng
+        log_end(run_id, "FAILED", 0, 0, "Connection Failed")
+        return 
 
     try:
-        # lấy last_load_time từ etl_metadata
-        cursor.execute("""
-            SELECT last_load_time 
-            FROM etl_metadata 
-            WHERE process_name = 'load_to_staging_delta'
-        """)
-        result = cursor.fetchone()
-        last_load_time = result["last_load_time"] if result else datetime(2000, 1, 1)
+        cursor = conn.cursor()
+        print(f"[RunID: {run_id}] Đang gọi Procedure...")
+        
+        # 7. GỌI PROCEDURE (load_to_staging_delta): Thực thi logic Incremental bên SQL
+        cursor.callproc('load_to_staging_delta')
+        
+        result_value = None
 
-        # lấy data mới hơn last_load_time 
-        cursor.execute("""
-            SELECT * 
-            FROM transformed_temp
-            WHERE published_at > %s
-        """, (last_load_time,))
-        new_records = cursor.fetchall()
+        # 8. NHẬN KẾT QUẢ: Lấy output từ SQL (Số dòng hoặc Thông báo lỗi)
+        for result in cursor.stored_results():
+            row = result.fetchone()
+            if row: result_value = row[0]
 
-        print(f"Found {len(new_records)} new/updated records since {last_load_time}")
-
-        if not new_records:
-            print("No new records found. Nothing to load.")
-            return
-
-        # ghi mới vào staging_delta 
-        insert_sql = """
-            INSERT INTO staging_delta (
-                article_url, source_name, category_name, author_name,
-                published_at, title, description, word_count,
-                tags, sentiment_score, run_id, datadim, is_new, is_updated, loaded_at
-            ) VALUES (
-                %(article_url)s, %(source_name)s, %(category_name)s, %(author_name)s,
-                %(published_at)s, %(title)s, %(description)s, %(word_count)s,
-                %(tags)s, %(sentiment_score)s, %(run_id)s, %(datadim)s, TRUE, FALSE, NOW()
-            )
-            ON DUPLICATE KEY UPDATE
-                is_updated = TRUE,
-                loaded_at = NOW()
-        """
-
-        for record in new_records:
-            record["run_id"] = run_id
-            record["datadim"] = date.today()  
-            cursor.execute(insert_sql, record)
-
-        records_loaded = len(new_records)
+        # 9. COMMIT: Xác nhận giao dịch
         conn.commit()
 
-        # update etl_metadata
-        cursor.execute("""
-            INSERT INTO etl_metadata (process_name, last_load_time)
-            VALUES ('load_to_staging_delta', %s)
-            ON DUPLICATE KEY UPDATE last_load_time = VALUES(last_load_time)
-        """, (datetime.now(),))
-        conn.commit()
+        # 10. PHÂN LOẠI KẾT QUẢ: Kiểm tra kiểu dữ liệu trả về
 
-        # ghi log
-        end_time = datetime.now()
-        cursor.execute("""
-            INSERT INTO logging (
-                run_id, config_id, job_name, start_time, end_time,
-                status, records_extracted, records_loaded, error_message
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            run_id, config_id, 'load_to_staging_delta', start_time, end_time,
-            'SUCCESS', records_loaded, records_loaded, None
-        ))
-        conn.commit()
+        # 10.1: Nếu là Chuỗi (String) -> Có lỗi từ SQL
+        if isinstance(result_value, str):
+            err_msg = f"SQL Error: {result_value}"
+            print(f"{err_msg}")
+            log_end(run_id, "FAILED", 0, 0, err_msg)
+        
+        # 10.2: Nếu là Số (Int) -> Thành công
+        elif isinstance(result_value, int): 
+            print(f"Thành công! Load {result_value} dòng.")
+            # Với bước này: extracted = loaded 
+            log_end(run_id, "SUCCESS", records_extracted=result_value, records_loaded=result_value)
+        
+        # 10.3: Nếu là None -> Lỗi lạ
+        else:
+            msg = "Procedure returned None"
+            print(f"{msg}")
+            log_end(run_id, "FAILED", 0, 0, msg)
 
-        print(f"Load to staging_delta completed successfully. {records_loaded} records loaded.")
-
-    except Exception as e:
-        conn.rollback()
-        error_msg = str(e)
-
-        # ghi log lỗi
-        cursor.execute("""
-            INSERT INTO logging (
-                run_id, config_id, job_name, start_time, end_time,
-                status, records_extracted, records_loaded, error_message
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            run_id, config_id, 'load_to_staging_delta', start_time, datetime.now(),
-            'FAILED', 0, 0, error_msg
-        ))
-        conn.commit()
-
-        print("Error:", error_msg)
-
+    except mysql.connector.Error as err:
+        # 11. BẮT NGOẠI LỆ (Exception Handling): Nếu code Python bị lỗi
+        err_msg = f"Python Error: {err}"
+        print(f"{err_msg}")
+        # 11.1 Ghi Log FAILED
+        log_end(run_id, "FAILED", 0, 0, err_msg)
+        
     finally:
-        cursor.close()
-        conn.close()
-
+        # 12. DỌN DẸP: Đóng kết nối Database
+        if (conn.is_connected()):
+            cursor.close()
+            conn.close()
+            print("Đã đóng kết nối.")
 
 if __name__ == "__main__":
-    load_to_staging_delta()
+    run_incremental_etl()
