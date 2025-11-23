@@ -1,6 +1,7 @@
 import os
 import csv
 import uuid
+import glob
 from utils.db_utils import connect_to_db, log_startg, log_endg
 
 class StagingLoader:
@@ -91,13 +92,18 @@ class StagingLoader:
 
 
 if __name__ == "__main__":
-    csv_file = "./source/article_201125.csv"  # Đường dẫn tới CSV
+    list_of_files = glob.glob('./source/article_*.csv')
 
-    loader = StagingLoader()
-    try:
-        loader.clear_staging_table()
-        success = loader.load_csv_to_staging(csv_file)
-        if not success:
-            print("Không load được dữ liệu CSV.")
-    finally:
-        loader.close()
+    if not list_of_files:
+        print("Không tìm thấy file CSV nào trong thư mục source!")
+    else:
+        latest_file = max(list_of_files, key=os.path.getctime)
+        
+        print(f"Phát hiện file mới nhất: {latest_file}")
+        
+        loader = StagingLoader()
+        try:
+            loader.clear_staging_table()
+            loader.load_csv_to_staging(latest_file)
+        finally:
+            loader.close()

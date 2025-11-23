@@ -1,0 +1,71 @@
+name: Daily News Crawler & Loader
+
+# 1. Kích hoạt
+on:
+  push:
+    branches: [ "Huy" ] 
+  schedule:
+    - cron: '0 19 * * *' # 02:00 sáng VN
+  workflow_dispatch:
+
+# 2. Công việc
+jobs:
+  crawl-and-load:
+    runs-on: ubuntu-latest
+
+    # Tối ưu: Khai báo Secret ở đây để TẤT CẢ các bước bên dưới đều dùng được
+    env:
+      MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+      MYSQL_PORT: ${{ secrets.MYSQL_PORT }}
+      MYSQL_USER: ${{ secrets.MYSQL_USER }}
+      MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+      # Nếu code Python cần biến DB_NAME, bạn nhớ thêm vào đây nhé
+      # DB_NAME: ${{ secrets.DB_NAME }}
+
+    steps:
+      # Bước 1: Lấy code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Bước 2: Cài Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      # Bước 3: Cài Chrome (Cho Selenium)
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@latest
+        with:
+          chrome-version: stable
+
+      # Bước 4: Cài thư viện
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # Cài thêm pyvi nếu chưa có trong requirements.txt
+          pip install pyvi 
+
+      # Bước 5: Chạy Scraper (Tạo ra file CSV trong folder source/)
+      - name: Run Web Scraper
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          python src/web_scraper.py
+
+      # Bước 6: Chạy Staging Loader (Đọc CSV nạp vào DB)
+      # LƯU Ý: File load_staging.py phải nằm trong thư mục src/ giống web_scraper.py
+      - name: Run Staging Loader
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          python src/load_staging.py
+
+      # Bước 7: Upload file CSV để backup/debug (Luôn chạy kể cả khi Load lỗi)
+      - name: Upload Crawled Data (Artifact)
+        if: always() 
+        uses: actions/upload-artifact@v4
+        with:
+          name: crawled-csv-files
+          path: source/
+          retention-days: 1
