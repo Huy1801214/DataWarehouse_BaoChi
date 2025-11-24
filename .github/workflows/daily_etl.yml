@@ -61,22 +61,22 @@ jobs:
           python src/load_to_staging_delta.py
 
       - name: Run Export Staging
-        run:
+        run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
           python src/export_staging.py
 
       - name: Run Load to DW
-        run: 
+        run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
           python src/load_to_dwh.py
       
       - name: Run Arrgegate to CSV
-        run: 
+        run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
           python src/aggregate_to_csv.py
 
       - name: Run Load to Mart
-        run: 
+        run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
           python src/load_to_mart.py
 
