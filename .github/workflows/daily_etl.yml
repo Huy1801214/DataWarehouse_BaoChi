@@ -2,9 +2,9 @@ name: Daily News Crawler & Loader
 
 on:
   push:
-    branches: [ "Dev", "Huy" ] # Chạy khi push lên cả Dev và Huy
+    branches: [ "Dev"] 
   schedule:
-    - cron: '0 19 * * *'
+    - cron: '0 14 * * *'
   workflow_dispatch:
 
 jobs:
@@ -59,6 +59,26 @@ jobs:
         run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
           python src/load_to_staging_delta.py
+
+      - name: Run Export Staging
+        run:
+          $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
+          python src/export_staging.py
+
+      - name: Run Load to DW
+        run: 
+          $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
+          python src/load_to_dwh.py
+      
+      - name: Run Arrgegate to CSV
+        run: 
+          $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
+          python src/aggregate_to_csv.py
+
+      - name: Run Load to Mart
+        run: 
+          $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
+          python src/load_to_mart.py
 
       - name: Upload Crawled Data (Artifact)
         if: always()
