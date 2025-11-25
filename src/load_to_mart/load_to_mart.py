@@ -12,7 +12,7 @@ from src.utils.log_utils import log_start, log_end
 # --- Cấu hình File & Constants ---
 TODAY_STR = date.today().strftime("%Y%m%d")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
-SOURCE_DIR = os.path.join(BASE_DIR, "..", "source")
+SOURCE_DIR = os.path.join(BASE_DIR, "..", "..", "source")
 
 # Định nghĩa thứ tự Load (Dims trước, Aggregate sau)
 LOAD_ORDER_INFO = [
@@ -33,7 +33,7 @@ def get_insert_query(table_name, df_cols):
     return f"INSERT INTO {table_name} ({cols}) VALUES ({placeholders})"
 
 def run_load_mart_job():
-    job_name = "Load_DataMart"
+    job_name = "load_to_datamart"
     run_id_load, conn_control = log_start(job_name)
     print(f"Run ID Load Data Mart: {run_id_load}")
     if not run_id_load: return
@@ -113,7 +113,7 @@ def run_load_mart_job():
                 print(f"Lỗi dọn dẹp: {cleanup_e}")
                 
         if conn_mart: conn_mart.rollback()
-        log_end(run_id_load, "FAIL", records_extracted=extracted, records_loaded=total_records_loaded, error_message=error_msg)
+        log_end(run_id_load, "FAILED", records_extracted=extracted, records_loaded=total_records_loaded, error_message=error_msg)
         print(f"FAIL: {error_msg}.")
 
     finally:

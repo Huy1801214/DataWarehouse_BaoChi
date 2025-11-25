@@ -10,7 +10,7 @@ from src.utils.log_utils import log_start, log_end
 
 TODAY_STR = date.today().strftime("%Y%m%d")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-OUTPUT_DIR = os.path.join(BASE_DIR, "..", "source")
+OUTPUT_DIR = os.path.join(BASE_DIR, "..", "..", "source")
 
 # Dictionary chứa tên bảng và tên file tương ứng
 TABLE_FILES = {
@@ -21,7 +21,7 @@ TABLE_FILES = {
 }
 
 def run_aggregate_and_dom():
-    job_name = "Aggregate_DOM"
+    job_name = "aggregate_to_csv"
     run_id_agg = None
     conn_dwh = None
     records_aggregated = 0
@@ -68,7 +68,7 @@ def run_aggregate_and_dom():
     except Exception as e:
         error_msg = f"Lỗi Aggregate/DOM: {str(e)}"
         if conn_dwh: conn_dwh.rollback()
-        log_end(run_id_agg, "FAIL", records_extracted=records_aggregated, records_loaded=0, error_message=error_msg)
+        log_end(run_id_agg, "FAILED", records_extracted=records_aggregated, records_loaded=0, error_message=error_msg)
         print(f"FAIL: {error_msg}. Dừng quy trình.")
         
     finally:
