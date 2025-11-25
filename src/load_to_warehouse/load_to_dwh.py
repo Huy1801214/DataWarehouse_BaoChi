@@ -4,7 +4,8 @@ import mysql.connector
 import zlib
 from dotenv import load_dotenv
 import warnings
-
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 warnings.filterwarnings("ignore")
 from utils.db_utils import connect_to_db
 from utils.log_utils import log_start, log_end 
