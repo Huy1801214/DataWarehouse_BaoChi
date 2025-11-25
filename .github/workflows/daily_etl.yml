@@ -22,8 +22,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Bỏ qua bước setup-python và setup-chrome nếu máy bạn đã cài sẵn rồi cho nhanh
-      # Nhưng giữ lại cũng không sao, nó sẽ setup môi trường ảo tạm
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -33,12 +31,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Cú pháp kiểm tra file tồn tại của PowerShell
           if (Test-Path requirements.txt) { pip install -r requirements.txt }
           pip install pyvi
-
-      # CHÚ Ý: Trên Windows, dấu phân cách thư mục là ; (chấm phẩy)
-      # Thay vì export PYTHONPATH, ta set biến môi trường kiểu PowerShell
       
       - name: Run Web Scraper
         run: |
