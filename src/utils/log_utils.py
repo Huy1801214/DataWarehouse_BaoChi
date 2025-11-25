@@ -1,4 +1,4 @@
-from utils.db_utils import connect_to_db
+from .db_utils import connect_to_db
 
 # Các hàm ghi log (Sẽ gọi SPs)
 def execute_sp(conn, procname, args):

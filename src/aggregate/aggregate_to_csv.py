@@ -4,10 +4,9 @@ import os
 import sys
 import pandas as pd
 from datetime import date
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from src.utils.db_utils import connect_to_db
 from src.utils.log_utils import log_start, log_end
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 TODAY_STR = date.today().strftime("%Y%m%d")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
