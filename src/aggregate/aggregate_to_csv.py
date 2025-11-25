@@ -1,10 +1,13 @@
 # aggregate_to_csv.py (Bước Aggregate và DOM)
 
 import os
+import sys
 import pandas as pd
 from datetime import date
-from utils.db_utils import connect_to_db
-from utils.log_utils import log_start, log_end
+from src.utils.db_utils import connect_to_db
+from src.utils.log_utils import log_start, log_end
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 TODAY_STR = date.today().strftime("%Y%m%d")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -14,7 +17,6 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "..", "source")
 TABLE_FILES = {
     "Agg_Temp_Mart": f"agg_mart_data_{TODAY_STR}.csv",
     "DimCategory": f"dim_category_{TODAY_STR}.csv",
-    "DimDate": f"dim_date_{TODAY_STR}.csv",
     "DimTag": f"dim_tag_{TODAY_STR}.csv",
     "DimSource": f"dim_source_{TODAY_STR}.csv"
 }
@@ -39,8 +41,8 @@ def run_aggregate_and_dom():
         conn_dwh.commit()
         records_aggregated = 1000 # Giả định số dòng
         
-        # 2. DOM MULTI-TABLES (Đọc và Ghi 5 bảng)
-        print("2. Đang DOM 5 bảng (Aggregate + Dims) ra file CSV...")
+        # 2. DOM MULTI-TABLES (Đọc và Ghi 4 bảng)
+        print("2. Đang DOM 4 bảng (Aggregate + Dims) ra file CSV...")
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         
         for table_name, file_name in TABLE_FILES.items():
