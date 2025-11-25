@@ -44,7 +44,17 @@ def create_selenium_driver():
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("start-maximized")
-    return webdriver.Chrome(options=chrome_options)
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--dns-prefetch-disable")
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    chrome_options.page_load_strategy = 'eager'
+
+    driver = webdriver.Chrome(options=chrome_options)
+    driver.set_page_load_timeout(60)
+
+    return driver
 
 def safe_extract(soup, selector, default='N/A'):
     try:
@@ -220,7 +230,7 @@ def run_all_crawl():
             # 4.3b. Lưu file CSV (cho từng job)
             all_data.extend(data)
             # 4.4. Ghi log SUCCESS
-            log_end(run_id_start, "SUCCESS", len(data), 0)
+            log_end(run_id_start, "SUCCESS", len(data), len(all_data))
             print(f"  [BUFFER] Đã lấy được {len(data)} bài. Đang chờ lưu...")
 
     if all_data: 

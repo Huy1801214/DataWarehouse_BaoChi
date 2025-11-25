@@ -1,0 +1,39 @@
+name: Check Config Changes Daily
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # chạy mỗi ngày lúc 02:00 UTC (~9h VN)
+  workflow_dispatch:
+
+jobs:
+  check-config:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # cần để diff hoạt động đúng
+
+      - name: Check if config_data.csv changed
+        id: check_diff
+        run: |
+          FILE_PATH="source/control/config_data.csv"
+
+          # Kiểm tra file thay đổi giữa bản mới nhất và bản trước đó
+          if git diff HEAD~1 HEAD -- "$FILE_PATH" | grep .; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+          else
+              echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run update script if config changed
+        if: steps.check_diff.outputs.changed == 'true'
+        run: |
+          echo "Config changed — Running update script..."
+          python3 src/extract/web_scraper.py
+
+      - name: No changes detected
+        if: steps.check_diff.outputs.changed == 'false'
+        run: |
+          echo "No changes detected — Skip"

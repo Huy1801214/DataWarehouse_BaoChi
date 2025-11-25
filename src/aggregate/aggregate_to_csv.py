@@ -1,9 +1,12 @@
 # aggregate_to_csv.py (Bước Aggregate và DOM)
 
 import os
+import sys
 import pandas as pd
 from datetime import date
-from utils.db_utils import connect_to_db, log_startg, log_endg
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from src.utils.db_utils import connect_to_db
+from src.utils.log_utils import log_start, log_end
 
 TODAY_STR = date.today().strftime("%Y%m%d")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -13,19 +16,19 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "..", "source")
 TABLE_FILES = {
     "Agg_Temp_Mart": f"agg_mart_data_{TODAY_STR}.csv",
     "DimCategory": f"dim_category_{TODAY_STR}.csv",
-    "DimDate": f"dim_date_{TODAY_STR}.csv",
     "DimTag": f"dim_tag_{TODAY_STR}.csv",
     "DimSource": f"dim_source_{TODAY_STR}.csv"
 }
 
 def run_aggregate_and_dom():
     job_name = "Aggregate_DOM"
-    run_id_agg, conn_control = log_startg(job_name)
-    if not run_id_agg: return
-
+    run_id_agg = None
     conn_dwh = None
     records_aggregated = 0
     total_files_written = 0
+    run_id_agg, conn_control = log_start(job_name)
+    print(f"Job Aggregate_DOM started with Run ID: {run_id_agg}")
+    if not run_id_agg: return
 
     try:
         conn_dwh = connect_to_db("news_warehouse_db")
@@ -37,8 +40,8 @@ def run_aggregate_and_dom():
         conn_dwh.commit()
         records_aggregated = 1000 # Giả định số dòng
         
-        # 2. DOM MULTI-TABLES (Đọc và Ghi 5 bảng)
-        print("2. Đang DOM 5 bảng (Aggregate + Dims) ra file CSV...")
+        # 2. DOM MULTI-TABLES (Đọc và Ghi 4 bảng)
+        print("2. Đang DOM 4 bảng (Aggregate + Dims) ra file CSV...")
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         
         for table_name, file_name in TABLE_FILES.items():
@@ -59,13 +62,13 @@ def run_aggregate_and_dom():
             print(f"   -> Đã ghi {table_name} ({len(df)} dòng)")
         
         # 3. Ghi log END (Aggregate)
-        log_endg(run_id_agg, "SUCCESS", extracted=records_aggregated, loaded=total_files_written) # Loaded=Số file
+        log_end(run_id_agg, "SUCCESS", records_extracted=records_aggregated, records_loaded=total_files_written) # Loaded=Số file
         print(f"Aggregate SUCCESS. Đã ghi {total_files_written} file.")
 
     except Exception as e:
         error_msg = f"Lỗi Aggregate/DOM: {str(e)}"
         if conn_dwh: conn_dwh.rollback()
-        log_endg(run_id_agg, "FAIL", extracted=records_aggregated, loaded=0, error_message=error_msg)
+        log_end(run_id_agg, "FAIL", records_extracted=records_aggregated, records_loaded=0, error_message=error_msg)
         print(f"FAIL: {error_msg}. Dừng quy trình.")
         
     finally:
