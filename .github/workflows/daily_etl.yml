@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "Dev"] 
   schedule:
-    - cron: '0 15 * * *'
+    - cron: '0 14 * * *'
   workflow_dispatch:
 
 jobs:
@@ -37,42 +37,42 @@ jobs:
       - name: Run Web Scraper
         run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
-          python src/web_scraper.py
+          python src/extract/web_scraper.py
 
       - name: Run Staging Loader
         run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
-          python src/load_staging.py
+          python src/load_and_transform/load_staging.py
 
       - name: Run Transform Stagging
         run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
-          python src/transform_staging.py
+          python src/load_and_transform/transform_staging.py
 
       - name: Run Load to Stagging Delta
         run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
-          python src/load_to_staging_delta.py
+          python src/load_to_staging_delta/load_to_staging_delta.py
 
       - name: Run Export Staging
         run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
-          python src/export_staging.py
+          python src/export_staging/export_staging.py
 
       - name: Run Load to DW
         run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
-          python src/load_to_dwh.py
+          python src/load_to_warehouse/load_to_dwh.py
       
       - name: Run Arrgegate to CSV
         run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
-          python src/aggregate_to_csv.py
+          python src/aggregate/aggregate_to_csv.py
 
       - name: Run Load to Mart
         run: |
           $env:PYTHONPATH = $env:PYTHONPATH + ";" + (Get-Location).Path
-          python src/load_to_mart.py
+          python src/load_to_mart/load_to_mart.py
 
       - name: Upload Crawled Data (Artifact)
         if: always()
