@@ -11,7 +11,8 @@ def connect_to_db(db_name):
             port=os.getenv("MYSQL_PORT"),
             user=os.getenv("MYSQL_USER"),
             password=os.getenv("MYSQL_PASSWORD"),
-            database=db_name
+            database=db_name,
+            ssl_disabled=True
         )
         print(f"Kết nối {db_name} thành công!")
         return conn
