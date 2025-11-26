@@ -34,7 +34,7 @@ def load_data_from_file():
         return
 
     # 5. KIỂM TRA FILE: File CSV có tồn tại không?
-    csv_file = "src/source/delta_data.csv"
+    csv_file = "source/delta_data.csv"
     if not os.path.exists(csv_file):
         err_msg = f"Không tìm thấy file {csv_file}"
         print(f"{err_msg}")
