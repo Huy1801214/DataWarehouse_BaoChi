@@ -1,6 +1,9 @@
 import os
+import sys
 import csv
 import glob
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from src.utils.db_utils import connect_to_db
 from src.utils.db_utils import connect_to_db
 from src.utils.log_utils import log_start, log_end
 
