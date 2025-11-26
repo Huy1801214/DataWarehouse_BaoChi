@@ -1,9 +1,9 @@
+import sys
 import os
 import sys
 import csv
 import glob
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from src.utils.db_utils import connect_to_db
 from src.utils.db_utils import connect_to_db
 from src.utils.log_utils import log_start, log_end
 
@@ -134,24 +134,24 @@ class StagingLoader:
         self.staging_conn.close()
 
 if __name__ == "__main__":
-    # Tìm file CSV mới nhất trong thư mục source
+    # 12: Tìm file CSV mới nhất trong thư mục source
     list_of_files = glob.glob('./source/article_*.csv')
 
     if not list_of_files:
         print("Không tìm thấy file CSV nào trong thư mục source!")
     else:
-        # Lấy file mới nhất dựa trên thời gian tạo
+        # 13: Lấy file mới nhất dựa trên thời gian tạo
         latest_file = max(list_of_files, key=os.path.getctime)
         print(f"Phát hiện file mới nhất: {latest_file}")
         
-        # Khởi tạo StagingLoader
+        # 14: Khởi tạo StagingLoader
         loader = StagingLoader()
         try:
-            #  Xóa dữ liệu cũ
+            #  15: Xóa dữ liệu cũ
             loader.clear_staging_table()
             
-            #  Load CSV vào staging
+            #  16: Load CSV vào staging
             loader.load_csv_to_staging(latest_file)
         finally:
-            #16: Đóng kết nối (luôn chạy dù có lỗi hay không)
+            # 17: Đóng kết nối (luôn chạy dù có lỗi hay không)
             loader.close()

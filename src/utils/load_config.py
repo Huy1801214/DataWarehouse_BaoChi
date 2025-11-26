@@ -2,13 +2,10 @@ import sys
 import os
 import pandas as pd
 from sqlalchemy import create_engine, text
-from utils.db_utils import connect_to_db
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
-
-# Tải biến môi trường từ file .env
 load_dotenv()
 
 def get_control_db_engine():
@@ -28,9 +25,6 @@ def get_control_db_engine():
         return None
 
 def load_config_data(csv_file_path):
-    """
-    Đọc file CSV và nạp vào bảng Config_table.
-    """
     # 1. Kiểm tra file tồn tại
     if not os.path.exists(csv_file_path):
         print(f"[Lỗi] Không tìm thấy file: {csv_file_path}")
@@ -46,29 +40,18 @@ def load_config_data(csv_file_path):
         print(f"[Info] Đang đọc file: {csv_file_path}")
         df = pd.read_csv(csv_file_path)
         
-        # Hiển thị vài dòng đầu để kiểm tra
         print(f"[Info] Dữ liệu đọc được ({len(df)} dòng):")
         print(df.head())
 
-        # 4. Xử lý dữ liệu (nếu cần)
-        # Ví dụ: Thêm cột date_dim là ngày hiện tại nếu trong CSV không có
+        # 4. Xử lý dữ liệu 
         if 'date_dim' not in df.columns:
             df['date_dim'] = pd.to_datetime('today').date()
 
         # 5. Nạp vào MySQL
-        table_name = 'Config_table' # Tên bảng trong DB (chú ý viết hoa/thường)
+        table_name = 'config_table' 
         
-        # Dùng transaction để đảm bảo an toàn
-        with engine.begin() as connection:
-            # Tùy chọn: Xóa dữ liệu cũ trước khi nạp mới (TRUNCATE)
-            # Bỏ comment 2 dòng dưới nếu bạn muốn xóa sạch bảng trước khi nạp
-            # print(f"[Info] Đang xóa dữ liệu cũ trong bảng {table_name}...")
-            # connection.execute(text(f"TRUNCATE TABLE {table_name}")) 
-            
+        with engine.begin() as connection:   
             print(f"[Info] Đang nạp dữ liệu vào bảng {table_name}...")
-            # if_exists='append': Thêm vào dữ liệu có sẵn
-            # if_exists='replace': Xóa bảng cũ và tạo bảng mới (cẩn thận mất khóa ngoại)
-            # index=False: Không lưu cột index của DataFrame
             df.to_sql(table_name, con=connection, if_exists='append', index=False)
             
         print("\n[Thành công] Đã nạp xong dữ liệu vào bảng Config_table.")
