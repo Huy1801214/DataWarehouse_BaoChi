@@ -48,11 +48,21 @@ def create_selenium_driver():
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--dns-prefetch-disable")
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument("--log-level=3")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
     chrome_options.page_load_strategy = 'eager'
 
+    prefs = {
+        "profile.managed_default_content_settings.images": 2,     
+        "profile.managed_default_content_settings.stylesheets": 2, 
+        "profile.default_content_setting_values.notifications": 2, 
+        "profile.managed_default_content_settings.cookies": 2      
+    }
+    chrome_options.add_experimental_option("prefs", prefs)
+
     driver = webdriver.Chrome(options=chrome_options)
-    driver.set_page_load_timeout(60)
+    driver.set_page_load_timeout(30)
+    driver.set_script_timeout(30)
 
     return driver
 
@@ -149,7 +159,7 @@ def run_crawler_for_job(driver, job, run_id):
     
     try:
         driver.get(job['start_url'])
-        time.sleep(3)
+        time.sleep(2)
         soup = BeautifulSoup(driver.page_source, "html.parser")
         
         links = soup.select(job['selectors']['article_link'])
@@ -164,7 +174,7 @@ def run_crawler_for_job(driver, job, run_id):
             if data:
                 crawled_data.append(data)
                 
-        return crawled_data, None # (data, error_message)
+        return crawled_data, None 
         
     except Exception as e:
         return [], str(e)

@@ -1,8 +1,10 @@
+import sys
 import os
 import csv
 import glob
-from utils.db_utils import connect_to_db
-from utils.log_utils import log_start, log_end
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from src.utils.db_utils import connect_to_db
+from src.utils.log_utils import log_start, log_end
 
 # =============================================
 # STAGING LOADER CLASS

@@ -4,7 +4,8 @@ import mysql.connector
 import zlib
 from dotenv import load_dotenv
 import warnings
-
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 warnings.filterwarnings("ignore")
 from utils.db_utils import connect_to_db
 from utils.log_utils import log_start, log_end 
@@ -33,11 +34,11 @@ def load_data_from_file():
         return
 
     # 5. KIỂM TRA FILE: File CSV có tồn tại không?
-    csv_file = "src/source/delta_data.csv"
+    csv_file = "source/delta_data.csv"
     if not os.path.exists(csv_file):
         err_msg = f"Không tìm thấy file {csv_file}"
         print(f"{err_msg}")
-        # 5.1. Ghi Log Thất Bại & Kết thúc
+        # [NHÁNH NO]: Ghi Log Thất Bại & Kết thúc
         log_end(run_id, "FAILED", 0, 0, err_msg)
         return
 
@@ -54,7 +55,7 @@ def load_data_from_file():
     except Exception as e:
         err_msg = f"Lỗi đọc file CSV: {e}"
         print(f"{err_msg}")
-        # 6.1 Nếu có lỗi: Ghi Log Lỗi đọc file & Kết thúc
+        # [NHÁNH YES]: Nếu có lỗi: Ghi Log Lỗi đọc file & Kết thúc
         log_end(run_id, "FAILED", 0, 0, err_msg)
         return
 
@@ -161,6 +162,7 @@ def load_data_from_file():
         # 20. Exception Handling: Ghi log FAILED
         err_msg = str(e)
         print(f"Lỗi Warehouse ETL: {err_msg}")
+        # 20.1. Ghi log Failed
         log_end(run_id, "FAILED", 0, 0, err_msg)
         
     finally:

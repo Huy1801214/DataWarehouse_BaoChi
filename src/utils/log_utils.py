@@ -1,4 +1,4 @@
-from utils.db_utils import connect_to_db
+from .db_utils import connect_to_db
 
 # Các hàm ghi log (Sẽ gọi SPs)
 def execute_sp(conn, procname, args):
@@ -31,8 +31,14 @@ def log_start(job_name: str, config_id: int = None):
         run_id = execute_sp(conn_control, 'SP_Start_Log', args)
         
         if run_id:
-            print(f"Ghi Log START thành công. RUN_ID: {run_id}")
+            print(f"[LOG] Bắt đầu Job: {job_name} | Run ID: {run_id}")
+            # Trả về run_id và conn (theo đúng format code cũ của bạn)
             return run_id, conn_control
+        else:
+            # NẾU SQL TRẢ VỀ NULL -> CÓ NGHĨA LÀ ĐANG BẬN
+            print(f"HỆ THỐNG ĐANG BẬN: Có Job khác đang chạy (Start mà chưa End).")
+            print("   -> Vui lòng chờ job cũ chạy xong.")
+            return None, None
 
     except Exception as e:
         print(f"Lỗi khi ghi Log START: {e}")

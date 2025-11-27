@@ -3,7 +3,8 @@ import os
 import warnings
 
 warnings.filterwarnings("ignore")
-
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.db_utils import connect_to_db
 from utils.log_utils import log_start, log_end
 
@@ -36,8 +37,9 @@ def export():
         df = pd.read_sql("SELECT * FROM staging_delta", conn)
         row_count = len(df)
         
-        # 3. Kiểm tra và tạo thư mục (Tránh lỗi OSError)
-        output_dir = "src/source"
+        # 3. Kiểm tra và tạo thư mục 
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        output_dir = os.path.join(base_dir, "source")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             

@@ -1,5 +1,8 @@
-from utils.db_utils import connect_to_db
-from utils.log_utils import log_start, log_end
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from src.utils.db_utils import connect_to_db
+from src.utils.log_utils import log_start, log_end
 from bs4 import BeautifulSoup
 import re
 from pyvi import ViTokenizer
